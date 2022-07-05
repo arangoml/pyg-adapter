@@ -25,11 +25,13 @@ The ArangoDB-PyG Adapter exports Graphs from ArangoDB, the multi-model database 
 
 #### Latest Release
 ```
-pip install torch adbpyg-adapter
+pip install torch
+pip install adbpyg-adapter
 ```
 #### Current State
 ```
-pip install torch git+https://github.com/arangoml/pyg-adapter.git
+pip install torch
+pip install git+https://github.com/arangoml/pyg-adapter.git
 ```
 
 ##  Quickstart
