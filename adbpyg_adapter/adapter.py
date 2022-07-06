@@ -135,6 +135,8 @@ class ADBPYG_Adapter(Abstract_ADBPYG_Adapter):
         edge_dict: DefaultDict[EdgeType, DefaultDict[str, List[Any]]]
         for e_col, atribs in metagraph["edgeCollections"].items():
             logger.debug(f"Preparing '{e_col}' edges")
+
+            has_edge_weight_list = "edge_weight" in atribs
             has_edge_feature_matrix = "edge_attr" in atribs
             has_edge_target_label = "y" in atribs
 
@@ -151,6 +153,9 @@ class ADBPYG_Adapter(Abstract_ADBPYG_Adapter):
                 edge["from_nodes"].append(from_node["id"])
                 edge["to_nodes"].append(to_node["id"])
 
+                if has_edge_weight_list:
+                    edge["edge_weight"].append(adb_e[atribs["edge_weight"]])
+
                 if has_edge_feature_matrix:
                     edge["edge_attr"].append(adb_e[atribs["edge_attr"]])
 
@@ -163,13 +168,17 @@ class ADBPYG_Adapter(Abstract_ADBPYG_Adapter):
                 edge_data: EdgeStorage = data if is_homogeneous else data[edge_type]
                 edge_data.edge_index = tensor([edge["from_nodes"], edge["to_nodes"]])
 
+                if has_edge_weight_list:
+                    logger.debug(f"Setting {edge_type} edge weight list")
+                    edge_data.edge_weight = tensor(edge["edge_weight"])
+
                 if has_edge_feature_matrix:
                     logger.debug(f"Setting {edge_type} edge feature matrix")
-                    edge_data.edge_attr = tensor(edge_data["edge_attr"])
+                    edge_data.edge_attr = tensor(edge["edge_attr"])
 
                 if has_edge_target_label:
                     logger.debug(f"Setting {edge_type} edge target label")
-                    edge_data.y = tensor(edge_data["y"])
+                    edge_data.y = tensor(edge["y"])
 
         logger.info(f"Created PyG '{name}' Graph")
         return data
@@ -262,7 +271,7 @@ class ADBPYG_Adapter(Abstract_ADBPYG_Adapter):
             for i in range(num_nodes):
                 logger.debug(f"N{i}: {i}")
 
-                adb_vertex: Json = {"_key": str(6)}
+                adb_vertex: Json = {"_key": str(i)}
 
                 if has_node_feature_matrix:
                     node_features: Tensor = node_data.x[i]
@@ -288,6 +297,7 @@ class ADBPYG_Adapter(Abstract_ADBPYG_Adapter):
 
             from_col, e_col, to_col = edge_type
 
+            has_edge_weight_list = "edge_weight" in edge_data
             has_edge_feature_matrix = "edge_attr" in edge_data
             has_edge_target_label = edge_data.num_edges == len(edge_data.get("y", []))
 
@@ -298,6 +308,10 @@ class ADBPYG_Adapter(Abstract_ADBPYG_Adapter):
                     "_from": f"{from_col}/{str(from_n)}",
                     "_to": f"{to_col}/{str(to_n)}",
                 }
+
+                if has_edge_weight_list:
+                    edge_weights: Tensor = edge_data.edge_weight[i]
+                    adb_edge["edge_weight"] = edge_weights.item()
 
                 if has_edge_feature_matrix:
                     edge_features: Tensor = edge_data.edge_attr[i]

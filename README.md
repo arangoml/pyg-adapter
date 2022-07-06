@@ -46,10 +46,10 @@ from adbpyg_adapter import ADBPYG_Adapter
 
 db = ArangoClient(hosts="http://localhost:8529").db("_system", username="root", password="")
 
-adbpyg_adapter = ADBPYG_Adapter(db)
+adbpyg_adapter = ADBPYG_Adapter(db, loggin_lvl=1)
 
-homo_data = FakeDataset()[0]
-hetero_data = FakeHeteroDataset()[0]
+homo_data = FakeDataset(edge_dim=1)[0]
+hetero_data = FakeHeteroDataset(edge_dim=2)[0]
 
 # Use Case 1: PyG to ArangoDB
 adbpyg_adapter.pyg_to_arangodb("FakeHomoData", homo_data)
@@ -69,7 +69,7 @@ homo_metagraph = {
         "FakeHomoData_N": {"x": "x", "y": "y"},
     },
     "edgeCollections": {
-        "FakeHomoData_E": {},
+        "FakeHomoData_E": {"edge_weight": "edge_weight"},
     },
 }
 new_homo_data = adbpyg_adapter.arangodb_to_pyg("FakeHomoData", homo_metagraph)
@@ -81,7 +81,7 @@ hetero_metagraph = {
         "v2": {"x": "x"},
     },
     "edgeCollections": {
-        "e0": {},
+        "e0": {"edge_attr": "edge_attr"},
     },
 }
 pyg_hetero = adbpyg_adapter.arangodb_to_pyg("FakeHeteroData", hetero_metagraph)
