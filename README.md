@@ -87,7 +87,7 @@ hetero_metagraph = {
 pyg_hetero = adbpyg_adapter.arangodb_to_pyg("FakeHeteroData", hetero_metagraph)
 ```
 
-##  Development & Testing
+##  Development & Testing (Not Yet Ready)
 
 Prerequisite: `arangorestore`
 
