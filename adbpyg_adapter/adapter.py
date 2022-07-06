@@ -60,7 +60,7 @@ class ADBPYG_Adapter(Abstract_ADBPYG_Adapter):
         :param name: The PyG graph name.
         :type name: str
         :param metagraph: An object defining vertex & edge collections to import
-            to DGL, along with the name of the node & edge feature matrices, and
+            to PyG, along with the name of the node & edge feature matrices, and
             the target label.
         :type metagraph: adbpyg_adapter.typings.ArangoMetagraph
         :param query_options: Keyword arguments to specify AQL query options when
@@ -325,7 +325,7 @@ class ADBPYG_Adapter(Abstract_ADBPYG_Adapter):
             source node type, edge type and destination node type.
         :type edge_types: List[torch_geometric.typing.EdgeType]
         :return: ArangoDB Edge Definitions
-        :rtype: List[adbdgl_adapter.typings.Json]
+        :rtype: List[adbpyg_adapter.typings.Json]
 
         Here is an example of **edge_definitions**:
 

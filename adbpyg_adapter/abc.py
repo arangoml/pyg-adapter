@@ -5,7 +5,6 @@ from abc import ABC
 from typing import Any, List, Set, Union
 
 from arango.graph import Graph as ArangoDBGraph
-from torch.functional import Tensor
 from torch_geometric.data import Data, HeteroData
 from torch_geometric.typing import EdgeType
 
@@ -45,12 +44,4 @@ class Abstract_ADBPYG_Adapter(ABC):
         raise NotImplementedError  # pragma: no cover
 
     def __insert_adb_docs(self) -> None:
-        raise NotImplementedError  # pragma: no cover
-
-
-class Abstract_ADBDGL_Controller(ABC):
-    def _adb_attribute_to_dgl_feature(self, key: str, col: str, val: Any) -> Any:
-        raise NotImplementedError  # pragma: no cover
-
-    def _dgl_feature_to_adb_attribute(self, key: str, col: str, val: Tensor) -> Any:
         raise NotImplementedError  # pragma: no cover

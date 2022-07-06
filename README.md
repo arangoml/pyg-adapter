@@ -39,43 +39,52 @@ pip install git+https://github.com/arangoml/pyg-adapter.git
 [![Open In Collab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/arangoml/pyg-adapter/blob/master/examples/ArangoDB_PyG_Adapter.ipynb)
 
 ```py
-import logging
 from arango import ArangoClient  # Python-Arango driver
-from torch_geometric.datasets import FakeHeteroDataset # Sample graph form PyG
+from torch_geometric.datasets import FakeDataset, FakeHeteroDataset # Sample graph form PyG
 
 from adbpyg_adapter import ADBPYG_Adapter
 
 db = ArangoClient(hosts="http://localhost:8529").db("_system", username="root", password="")
 
-adbpyg_adapter = ADBPYG_Adapter(db, logging_lvl=logging.DEBUG)
+adbpyg_adapter = ADBPYG_Adapter(db)
 
-# Use Case 1.1: ArangoDB to PyG via Graph name
-pyg_fraud_graph = adbpyg_adapter.arangodb_graph_to_pyg("fraud-detection")
+homo_data = FakeDataset()[0]
+hetero_data = FakeHeteroDataset()[0]
 
-# Use Case 1.2: ArangoDB to PyG via Collection names
-pyg_fraud_graph_2 = adbpyg_adapter.arangodb_collections_to_pyg(
-    "fraud-detection",
-    {"account", "Class", "customer"},  # Vertex collections
-    {"accountHolder", "Relationship", "transaction"},  # Edge collections
-)
+# Use Case 1: PyG to ArangoDB
+adbpyg_adapter.pyg_to_arangodb("FakeHomoData", homo_data)
+adbpyg_adapter.pyg_to_arangodb("FakeHeteroData", hetero_data)
 
-# Use Case 1.3: ArangoDB to PyG via Metagraph
-metagraph = { 
+# Use Case 2.1: ArangoDB to PyG via Graph name
+pyg_homo = adbpyg_adapter.arangodb_graph_to_pyg("FakeHomoData")
+pyg_hetero = adbpyg_adapter.arangodb_graph_to_pyg("FakeHeteroData")
+
+# Use Case 2.2: ArangoDB to PyG via Collection names
+pyg_homo = adbpyg_adapter.arangodb_collections_to_pyg("FakeHomoData", v_cols={'FakeHomoData_N'}, e_cols={'FakeHomoData_E'})
+pyg_hetero = adbpyg_adapter.arangodb_collections_to_pyg("FakeHeteroData", v_cols={'v0', 'v1', 'v2'}, e_cols={'e0'})
+
+# Use Case 2.3: ArangoDB to PyG via Metagraph
+homo_metagraph = {
     "vertexCollections": {
-        "account": {'x': 'features', 'y': 'label'},
-        "bank": {'x': 'features'},
-        "customer": {'x': 'features'},
+        "FakeHomoData_N": {"x": "x", "y": "y"},
     },
     "edgeCollections": {
-        "accountHolder": {},
-        "transaction": {'edge_attr': 'features'},
+        "FakeHomoData_E": {},
     },
 }
-pyg_fraud_graph_3 = adbpyg_adapter.arangodb_to_pyg("fraud-detection", metagraph)
+new_homo_data = adbpyg_adapter.arangodb_to_pyg("FakeHomoData", homo_metagraph)
 
-# Use Case 2: PyG to ArangoDB
-pyg_hetero_graph = FakeHeteroDataset()[0]
-adb_hetero_graph = adbpyg_adapter.pyg_to_arangodb("FakeHeteroGraph", pyg_hetero_graph)
+hetero_metagraph = {
+    "vertexCollections": {
+        "v0": {"x": "x", "y": "y"},
+        "v1": {"x": "x"},
+        "v2": {"x": "x"},
+    },
+    "edgeCollections": {
+        "e0": {},
+    },
+}
+pyg_hetero = adbpyg_adapter.arangodb_to_pyg("FakeHeteroData", hetero_metagraph)
 ```
 
 ##  Development & Testing
