@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import logging
 from collections import defaultdict
-from typing import Any, DefaultDict, Dict, List, Optional, Set, Union
+from typing import Any, DefaultDict, Dict, List, Set, Union
 
 from arango.cursor import Cursor
 from arango.database import Database
@@ -11,7 +11,7 @@ from arango.result import Result
 from torch import tensor
 from torch.functional import Tensor
 from torch_geometric.data import Data, HeteroData
-from torch_geometric.data.storage import NodeStorage, EdgeStorage
+from torch_geometric.data.storage import EdgeStorage, NodeStorage
 from torch_geometric.typing import EdgeType
 
 from .abc import Abstract_ADBPYG_Adapter
@@ -88,12 +88,17 @@ class ADBPYG_Adapter(Abstract_ADBPYG_Adapter):
         """
         logger.debug(f"--arangodb_to_pyg('{name}')--")
 
+        is_homogeneous = (
+            len(metagraph["vertexCollections"]) == 1
+            and len(metagraph["edgeCollections"]) == 1
+        )
+
         # Maps ArangoDB vertex IDs to PyG node IDs
         adb_map: Dict[str, Json] = dict()
 
-        data = HeteroData()
-        x_data: List[Any] = []
-        y_data: List[Any] = []
+        data = Data() if is_homogeneous else HeteroData()
+        x_feature_matrix: List[Any] = []
+        y_target_label: List[Any] = []
 
         adb_v: Json
         for v_col, atribs in metagraph["vertexCollections"].items():
@@ -108,61 +113,63 @@ class ADBPYG_Adapter(Abstract_ADBPYG_Adapter):
                 adb_map[adb_id] = {"id": i, "col": v_col}
 
                 if has_node_feature_matrix:
-                    x_data.append(adb_v[atribs["x"]])
+                    x_feature_matrix.append(adb_v[atribs["x"]])
 
                 if has_node_target_label:
-                    y_data.append(adb_v[atribs["y"]])
+                    y_target_label.append(adb_v[atribs["y"]])
 
-            data[v_col].num_nodes = i + 1
+            node_data: NodeStorage = data if is_homogeneous else data[v_col]
+            node_data.num_nodes = i + 1
 
             if has_node_feature_matrix:
                 logger.debug(f"Setting '{v_col}' node feature matrix")
-                data[v_col].x = tensor(x_data)
-                x_data.clear()
+                node_data.x = tensor(x_feature_matrix)
+                x_feature_matrix.clear()
 
             if has_node_target_label:
                 logger.debug(f"Setting '{v_col}' node target label")
-                data[v_col].y = tensor(y_data)
-                y_data.clear()
+                node_data.y = tensor(y_target_label)
+                y_target_label.clear()
 
         adb_e: Json
+        edge_dict: DefaultDict[EdgeType, DefaultDict[str, List[Any]]]
         for e_col, atribs in metagraph["edgeCollections"].items():
             logger.debug(f"Preparing '{e_col}' edges")
             has_edge_feature_matrix = "edge_attr" in atribs
             has_edge_target_label = "y" in atribs
 
-            edge_dict: DefaultDict[Any, Any] = defaultdict(lambda: defaultdict(list))
+            edge_dict = defaultdict(lambda: defaultdict(list))
 
             for i, adb_e in enumerate(self.__fetch_adb_docs(e_col, query_options)):
                 logger.debug(f'E{i}: {adb_e["_id"]}')
 
                 from_node = adb_map[adb_e["_from"]]
                 to_node = adb_map[adb_e["_to"]]
-                edge_type = (from_node["col"], e_col, to_node["col"])
+                edge_type: EdgeType = (from_node["col"], e_col, to_node["col"])
 
-                edge_data = edge_dict[edge_type]
-                edge_data["from_nodes"].append(from_node["id"])
-                edge_data["to_nodes"].append(to_node["id"])
+                edge = edge_dict[edge_type]
+                edge["from_nodes"].append(from_node["id"])
+                edge["to_nodes"].append(to_node["id"])
 
                 if has_edge_feature_matrix:
-                    edge_data["edge_attr"].append(adb_e[atribs["edge_attr"]])
+                    edge["edge_attr"].append(adb_e[atribs["edge_attr"]])
 
                 if has_edge_target_label:
-                    edge_data["y"].append(adb_e[atribs["y"]])
+                    edge["y"].append(adb_e[atribs["y"]])
 
-            for edge_type, edge_data in edge_dict.items():
+            for edge_type, edge in edge_dict.items():
                 logger.debug(f"Setting {edge_type} edge index")
-                data[edge_type].edge_index = tensor(
-                    [edge_data["from_nodes"], edge_data["to_nodes"]]
-                )
+
+                edge_data: EdgeStorage = data if is_homogeneous else data[edge_type]
+                edge_data.edge_index = tensor([edge["from_nodes"], edge["to_nodes"]])
 
                 if has_edge_feature_matrix:
                     logger.debug(f"Setting {edge_type} edge feature matrix")
-                    data[edge_type].edge_attr = tensor(edge_data["edge_attr"])
+                    edge_data.edge_attr = tensor(edge_data["edge_attr"])
 
                 if has_edge_target_label:
                     logger.debug(f"Setting {edge_type} edge target label")
-                    data[edge_type].y = tensor(edge_data["y"])
+                    edge_data.y = tensor(edge_data["y"])
 
         logger.info(f"Created PyG '{name}' Graph")
         return data
@@ -222,7 +229,7 @@ class ADBPYG_Adapter(Abstract_ADBPYG_Adapter):
         overwrite_graph: bool = False,
         **import_options: Any,
     ) -> ADBGraph:
-        logger.debug(f"--dgl_to_arangodb('{name}')--")
+        logger.debug(f"--pyg_to_arangodb('{name}')--")
 
         is_homogeneous = type(pyg_g) is Data
         if is_homogeneous:
@@ -242,9 +249,6 @@ class ADBPYG_Adapter(Abstract_ADBPYG_Adapter):
             adb_graph = self.__db.create_graph(name, edge_definitions)
 
         adb_v_cols: List[str] = adb_graph.vertex_collections()
-        adb_e_cols: List[str] = [
-            e_d["edge_collection"] for e_d in adb_graph.edge_definitions()
-        ]
 
         v_col_docs: List[Json] = []  # to-be-inserted ArangoDB vertices
         for v_col in adb_v_cols:
@@ -253,12 +257,12 @@ class ADBPYG_Adapter(Abstract_ADBPYG_Adapter):
             logger.debug(f"Preparing {num_nodes} '{v_col}' nodes")
 
             has_node_feature_matrix = "x" in node_data
-            has_node_target_label = "y" in node_data
+            has_node_target_label = node_data.num_nodes == len(node_data.get("y", []))
 
             for i in range(num_nodes):
                 logger.debug(f"N{i}: {i}")
 
-                adb_vertex = {"_key": str(i)}
+                adb_vertex: Json = {"_key": str(6)}
 
                 if has_node_feature_matrix:
                     node_features: Tensor = node_data.x[i]
@@ -285,12 +289,12 @@ class ADBPYG_Adapter(Abstract_ADBPYG_Adapter):
             from_col, e_col, to_col = edge_type
 
             has_edge_feature_matrix = "edge_attr" in edge_data
-            has_edge_target_label = "y" in edge_data
+            has_edge_target_label = edge_data.num_edges == len(edge_data.get("y", []))
 
             for i, (from_n, to_n) in enumerate(zip(*edge_data.edge_index.tolist())):
                 logger.debug(f"E{i}: ({from_n}, {to_n})")
 
-                adb_edge = {
+                adb_edge: Json = {
                     "_from": f"{from_col}/{str(from_n)}",
                     "_to": f"{to_col}/{str(to_n)}",
                 }
@@ -335,6 +339,7 @@ class ADBPYG_Adapter(Abstract_ADBPYG_Adapter):
         ]
         """
 
+        edge_type_map: DefaultDict[str, DefaultDict[str, Set[str]]]
         edge_type_map = defaultdict(lambda: defaultdict(set))
         for edge_type in edge_types:
             from_col, e_col, to_col = edge_type

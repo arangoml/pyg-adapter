@@ -9,7 +9,7 @@ from torch.functional import Tensor
 from torch_geometric.data import Data, HeteroData
 from torch_geometric.typing import EdgeType
 
-from .typings import ArangoMetagraph
+from .typings import ArangoMetagraph, Json
 
 
 class Abstract_ADBPYG_Adapter(ABC):
@@ -36,6 +36,15 @@ class Abstract_ADBPYG_Adapter(ABC):
         overwrite_graph: bool = False,
         **import_options: Any,
     ) -> ArangoDBGraph:
+        raise NotImplementedError  # pragma: no cover
+
+    def etypes_to_edefinitions(self, edge_types: List[EdgeType]) -> List[Json]:
+        raise NotImplementedError  # pragma: no cover
+
+    def __fetch_adb_docs(self) -> None:
+        raise NotImplementedError  # pragma: no cover
+
+    def __insert_adb_docs(self) -> None:
         raise NotImplementedError  # pragma: no cover
 
 

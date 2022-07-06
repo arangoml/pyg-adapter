@@ -45,7 +45,6 @@ from torch_geometric.datasets import FakeHeteroDataset # Sample graph form PyG
 
 from adbpyg_adapter import ADBPYG_Adapter
 
-# Let's assume that the ArangoDB "fraud detection" dataset is imported to this endpoint
 db = ArangoClient(hosts="http://localhost:8529").db("_system", username="root", password="")
 
 adbpyg_adapter = ADBPYG_Adapter(db, logging_lvl=logging.DEBUG)
