@@ -14,12 +14,12 @@ from torch_geometric.data import Data, HeteroData
 from torch_geometric.data.storage import EdgeStorage, NodeStorage
 from torch_geometric.typing import EdgeType
 
-from .abc import Abstract_ADBPYG_Adapter
-from .typings import ArangoMetagraph, Json
+from .abc import Abstract_ADBPyG_Adapter
+from .typings import ArangoMetagraph, DEFAULT_PyG_METAGRAPH, Json, PyGMetagraph
 from .utils import logger
 
 
-class ADBPYG_Adapter(Abstract_ADBPYG_Adapter):
+class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
     """ArangoDB-PyG adapter.
 
     :param db: A python-arango database instance
@@ -235,6 +235,7 @@ class ADBPYG_Adapter(Abstract_ADBPYG_Adapter):
         self,
         name: str,
         pyg_g: Union[Data, HeteroData],
+        metagraph: PyGMetagraph = DEFAULT_PyG_METAGRAPH,
         overwrite_graph: bool = False,
         **import_options: Any,
     ) -> ADBGraph:
@@ -275,14 +276,14 @@ class ADBPYG_Adapter(Abstract_ADBPYG_Adapter):
 
                 if has_node_feature_matrix:
                     node_features: Tensor = node_data.x[i]
-                    adb_vertex["x"] = node_features.tolist()
+                    adb_vertex[metagraph["x"]] = node_features.tolist()
 
                 if has_node_target_label:
                     node_label: Tensor = node_data.y[i]
                     try:
-                        adb_vertex["y"] = node_label.item()
+                        adb_vertex[metagraph["y"]] = node_label.item()
                     except ValueError:
-                        adb_vertex["y"] = node_label.tolist()
+                        adb_vertex[metagraph["y"]] = node_label.tolist()
 
                 v_col_docs.append(adb_vertex)
 
@@ -311,18 +312,18 @@ class ADBPYG_Adapter(Abstract_ADBPYG_Adapter):
 
                 if has_edge_weight_list:
                     edge_weights: Tensor = edge_data.edge_weight[i]
-                    adb_edge["edge_weight"] = edge_weights.item()
+                    adb_edge[metagraph["edge_weight"]] = edge_weights.item()
 
                 if has_edge_feature_matrix:
                     edge_features: Tensor = edge_data.edge_attr[i]
-                    adb_edge["edge_attr"] = edge_features.tolist()
+                    adb_edge[metagraph["edge_weight"]] = edge_features.tolist()
 
                 if has_edge_target_label:
                     edge_label: Tensor = edge_data.y[i]
                     try:
-                        adb_edge["y"] = edge_label.item()
+                        adb_edge[metagraph["y"]] = edge_label.item()
                     except ValueError:
-                        adb_edge["y"] = edge_label.tolist()
+                        adb_edge[metagraph["y"]] = edge_label.tolist()
 
                 e_col_docs.append(adb_edge)
 

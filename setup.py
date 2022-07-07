@@ -19,9 +19,9 @@ setup(
     install_requires=[
         "requests>=2.27.1",
         "torch>=1.10.2",
-        # "torch-sparse>=0.6.13",
-        # "torch-scatter>=2.0.9",
-        "torch-geometric>=2.0.4",
+        "torch-sparse>=0.6.12",
+        "torch-scatter>=2.0.9",
+        "torch-geometric>=2.0.3",
         "python-arango>=7.4.1",
         "setuptools>=45",
     ],

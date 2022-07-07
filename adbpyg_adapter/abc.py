@@ -2,16 +2,16 @@
 # -*- coding: utf-8 -*-
 
 from abc import ABC
-from typing import Any, List, Set, Union
+from typing import Any, Dict, List, Set, Union
 
 from arango.graph import Graph as ArangoDBGraph
 from torch_geometric.data import Data, HeteroData
 from torch_geometric.typing import EdgeType
 
-from .typings import ArangoMetagraph, Json
+from .typings import ArangoMetagraph, DEFAULT_PyG_METAGRAPH, Json, PyGMetagraph
 
 
-class Abstract_ADBPYG_Adapter(ABC):
+class Abstract_ADBPyG_Adapter(ABC):
     def __init__(self) -> None:
         raise NotImplementedError  # pragma: no cover
 
@@ -32,6 +32,7 @@ class Abstract_ADBPYG_Adapter(ABC):
         self,
         name: str,
         pyg_g: Union[Data, HeteroData],
+        metagraph: PyGMetagraph = DEFAULT_PyG_METAGRAPH,
         overwrite_graph: bool = False,
         **import_options: Any,
     ) -> ArangoDBGraph:
@@ -45,3 +46,12 @@ class Abstract_ADBPYG_Adapter(ABC):
 
     def __insert_adb_docs(self) -> None:
         raise NotImplementedError  # pragma: no cover
+
+    @property
+    def DEFAULT_PyG_METAGRAPH(self) -> Dict[str, str]:
+        return {
+            "x": "x",
+            "y": "y",
+            "edge_attr": "edge_attr",
+            "edge_weight": "edge_weight",
+        }

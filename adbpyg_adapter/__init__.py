@@ -1,1 +1,1 @@
-from adbpyg_adapter.adapter import ADBPYG_Adapter  # noqa: F401
+from adbpyg_adapter.adapter import ADBPyG_Adapter  # noqa: F401

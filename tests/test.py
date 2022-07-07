@@ -1,6 +1,6 @@
 from arango import ArangoClient
 from torch_geometric.datasets import FakeHeteroDataset, FakeDataset
-from adbpyg_adapter import ADBPYG_Adapter
+from adbpyg_adapter import ADBPyG_Adapter
 from collections import defaultdict
 import torch
 
@@ -8,12 +8,13 @@ db = ArangoClient(hosts="http://localhost:8529").db("_system", username="root", 
 db.delete_graph("FakeHeteroData", drop_collections=True, ignore_missing=True)
 db.delete_graph("FakeHomoData", drop_collections=True, ignore_missing=True)
 
-adbpyg_adapter = ADBPYG_Adapter(db, 1)
+adbpyg_adapter = ADBPyG_Adapter(db)
 
 homo_data = FakeDataset()[0]
-hetero_data = FakeHeteroDataset()[0]
+# hetero_data = FakeHeteroDataset()[0]
 
-# adbpyg_adapter.pyg_to_arangodb("FakeHomoData", homo_data)
+# metagraph = {"x": "features", "y": "label", "edge_attr": "edge_features"}
+# adbpyg_adapter.pyg_to_arangodb("FakeHomoData", homo_data, metagraph=metagraph)
 # adbpyg_adapter.pyg_to_arangodb("FakeHeteroData", hetero_data)
 
 # homo_metagraph = {
