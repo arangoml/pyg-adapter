@@ -13,6 +13,7 @@ from torch.functional import Tensor
 from torch_geometric.data import Data, HeteroData
 from torch_geometric.data.storage import EdgeStorage, NodeStorage
 from torch_geometric.typing import EdgeType
+from tqdm import tqdm
 
 from .abc import Abstract_ADBPyG_Adapter
 from .typings import ArangoMetagraph, DEFAULT_PyG_METAGRAPH, Json, PyGMetagraph
@@ -106,7 +107,14 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             has_node_feature_matrix = "x" in atribs
             has_node_target_label = "y" in atribs
 
-            for i, adb_v in enumerate(self.__fetch_adb_docs(v_col, query_options)):
+            for i, adb_v in enumerate(
+                tqdm(
+                    self.__fetch_adb_docs(v_col, query_options),
+                    ascii=True,
+                    desc=v_col,
+                    disable=logger.level != logging.INFO,
+                )
+            ):
                 adb_id = adb_v["_id"]
                 logger.debug(f"V{i}: {adb_id}")
 
@@ -142,7 +150,14 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
             edge_dict = defaultdict(lambda: defaultdict(list))
 
-            for i, adb_e in enumerate(self.__fetch_adb_docs(e_col, query_options)):
+            for i, adb_e in enumerate(
+                tqdm(
+                    self.__fetch_adb_docs(e_col, query_options),
+                    ascii=True,
+                    desc=e_col,
+                    disable=logger.level != logging.INFO,
+                )
+            ):
                 logger.debug(f'E{i}: {adb_e["_id"]}')
 
                 from_node = adb_map[adb_e["_from"]]
@@ -269,7 +284,12 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             has_node_feature_matrix = "x" in node_data
             has_node_target_label = node_data.num_nodes == len(node_data.get("y", []))
 
-            for i in range(num_nodes):
+            for i in tqdm(
+                range(num_nodes),
+                ascii=True,
+                desc=v_col,
+                disable=logger.level != logging.INFO,
+            ):
                 logger.debug(f"N{i}: {i}")
 
                 adb_vertex: Json = {"_key": str(i)}
@@ -302,7 +322,15 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             has_edge_feature_matrix = "edge_attr" in edge_data
             has_edge_target_label = edge_data.num_edges == len(edge_data.get("y", []))
 
-            for i, (from_n, to_n) in enumerate(zip(*edge_data.edge_index.tolist())):
+            for i, (from_n, to_n) in enumerate(
+                tqdm(
+                    zip(*(edge_data.edge_index.tolist())),
+                    ascii=True,
+                    desc=str(edge_type),
+                    total=num_edges,
+                    disable=logger.level != logging.INFO,
+                )
+            ):
                 logger.debug(f"E{i}: ({from_n}, {to_n})")
 
                 adb_edge: Json = {
@@ -389,7 +417,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 RETURN doc
         """
 
-        return self.__db.aql.execute(aql, **query_options)
+        return [doc for doc in self.__db.aql.execute(aql, **query_options)]
 
     def __insert_adb_docs(
         self, col: str, docs: List[Json], import_options: Any

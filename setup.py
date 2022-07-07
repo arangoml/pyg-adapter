@@ -23,6 +23,7 @@ setup(
         "torch-scatter>=2.0.9",
         "torch-geometric>=2.0.3",
         "python-arango>=7.4.1",
+        "tqdm>=4.64.0",
         "setuptools>=45",
     ],
     extras_require={
