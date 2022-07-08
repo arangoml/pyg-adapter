@@ -131,7 +131,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
             if has_node_feature_matrix:
                 logger.debug(f"Setting '{v_col}' node feature matrix")
-                node_data.x = tensor(x_feature_matrix)
+                node_data.x = tensor(x_feature_matrix).float()
                 x_feature_matrix.clear()
 
             if has_node_target_label:
@@ -185,11 +185,11 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
                 if has_edge_weight_list:
                     logger.debug(f"Setting {edge_type} edge weight list")
-                    edge_data.edge_weight = tensor(edge["edge_weight"])
+                    edge_data.edge_weight = tensor(edge["edge_weight"]).float()
 
                 if has_edge_feature_matrix:
                     logger.debug(f"Setting {edge_type} edge feature matrix")
-                    edge_data.edge_attr = tensor(edge["edge_attr"])
+                    edge_data.edge_attr = tensor(edge["edge_attr"]).float()
 
                 if has_edge_target_label:
                     logger.debug(f"Setting {edge_type} edge target label")
