@@ -18,12 +18,12 @@ setup(
     license="Apache Software License",
     install_requires=[
         "requests>=2.27.1",
-        "torch>=1.10.2",
-        "torch-sparse>=0.6.12",
+        "torch>=1.12.0",
+        "torch-sparse>=0.6.14",
         "torch-scatter>=2.0.9",
-        "torch-geometric>=2.0.3",
+        "torch-geometric>=2.0.4",
         "python-arango>=7.4.1",
-        "tqdm>=4.64.0",
+        # "tqdm>=4.64.0", # TODO: Re-introduce in the near future
         "setuptools>=45",
     ],
     extras_require={
