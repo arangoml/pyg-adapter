@@ -107,14 +107,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             has_node_feature_matrix = "x" in atribs
             has_node_target_label = "y" in atribs
 
-            for i, adb_v in enumerate(
-                tqdm(
-                    self.__fetch_adb_docs(v_col, query_options),
-                    ascii=True,
-                    desc=v_col,
-                    disable=logger.level != logging.INFO,
-                )
-            ):
+            for i, adb_v in enumerate(self.__fetch_adb_docs(v_col, query_options)):
                 adb_id = adb_v["_id"]
                 logger.debug(f"V{i}: {adb_id}")
 
@@ -127,7 +120,6 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                     y_target_label.append(adb_v[atribs["y"]])
 
             node_data: NodeStorage = data if is_homogeneous else data[v_col]
-            node_data.num_nodes = i + 1
 
             if has_node_feature_matrix:
                 logger.debug(f"Setting '{v_col}' node feature matrix")
@@ -150,14 +142,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
             edge_dict = defaultdict(lambda: defaultdict(list))
 
-            for i, adb_e in enumerate(
-                tqdm(
-                    self.__fetch_adb_docs(e_col, query_options),
-                    ascii=True,
-                    desc=e_col,
-                    disable=logger.level != logging.INFO,
-                )
-            ):
+            for i, adb_e in enumerate(self.__fetch_adb_docs(e_col, query_options)):
                 logger.debug(f'E{i}: {adb_e["_id"]}')
 
                 from_node = adb_map[adb_e["_from"]]
@@ -279,17 +264,13 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         for v_col in adb_v_cols:
             node_data: NodeStorage = pyg_g if is_homogeneous else pyg_g[v_col]
             num_nodes: int = node_data.num_nodes
+
             logger.debug(f"Preparing {num_nodes} '{v_col}' nodes")
 
             has_node_feature_matrix = "x" in node_data
-            has_node_target_label = node_data.num_nodes == len(node_data.get("y", []))
+            has_node_target_label = num_nodes == len(node_data.get("y", []))
 
-            for i in tqdm(
-                range(num_nodes),
-                ascii=True,
-                desc=v_col,
-                disable=logger.level != logging.INFO,
-            ):
+            for i in range(num_nodes):
                 logger.debug(f"N{i}: {i}")
 
                 adb_vertex: Json = {"_key": str(i)}
@@ -314,23 +295,16 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         for edge_type in edge_types:
             edge_data: EdgeStorage = pyg_g if is_homogeneous else pyg_g[edge_type]
             num_edges: int = edge_data.num_edges
+
             logger.debug(f"Preparing {num_edges} '{edge_type}' nodes")
 
             from_col, e_col, to_col = edge_type
 
             has_edge_weight_list = "edge_weight" in edge_data
             has_edge_feature_matrix = "edge_attr" in edge_data
-            has_edge_target_label = edge_data.num_edges == len(edge_data.get("y", []))
+            has_edge_target_label = num_edges == len(edge_data.get("y", []))
 
-            for i, (from_n, to_n) in enumerate(
-                tqdm(
-                    zip(*(edge_data.edge_index.tolist())),
-                    ascii=True,
-                    desc=str(edge_type),
-                    total=num_edges,
-                    disable=logger.level != logging.INFO,
-                )
-            ):
+            for i, (from_n, to_n) in enumerate(zip(*(edge_data.edge_index.tolist()))):
                 logger.debug(f"E{i}: ({from_n}, {to_n})")
 
                 adb_edge: Json = {
@@ -417,7 +391,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 RETURN doc
         """
 
-        return [doc for doc in self.__db.aql.execute(aql, **query_options)]
+        return self.__db.aql.execute(aql, **query_options)
 
     def __insert_adb_docs(
         self, col: str, docs: List[Json], import_options: Any
