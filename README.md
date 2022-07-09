@@ -40,7 +40,7 @@ pip install git+https://github.com/arangoml/pyg-adapter.git
 
 ```py
 from arango import ArangoClient  # Python-Arango driver
-from torch_geometric.datasets import FakeDataset, FakeHeteroDataset # Sample graph form PyG
+from torch_geometric.datasets import FakeDataset, FakeHeteroDataset # Sample graphs form PyG
 
 from adbpyg_adapter import ADBPYG_Adapter
 
