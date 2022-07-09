@@ -8,7 +8,6 @@ from .abc import Abstract_ADBPyG_Controller
 from .typings import Json
 
 
-
 class ADBPyG_Controller(Abstract_ADBPyG_Controller):
     """ArangoDB-PyG controller.
 
