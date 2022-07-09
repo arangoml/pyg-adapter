@@ -26,6 +26,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
     :param db: A python-arango database instance
     :type db: arango.database.Database
+    :param controller: The ArangoDB-PyG controller, used to prepare
+        nodes & edges before ArangoDB insertion, optionally re-defined
+        by the user if needed (otherwise defaults to ADBPyG_Controller).
+    :type controller: adbpyg_adapter.controller.ADBPyG_Controller
     :param logging_lvl: Defaults to logging.INFO. Other useful options are
         logging.DEBUG (more verbose), and logging.WARNING (less verbose).
     :type logging_lvl: str | int
@@ -63,36 +67,42 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
     def arangodb_to_pyg(
         self, name: str, metagraph: ArangoMetagraph, **query_options: Any
     ) -> Union[Data, HeteroData]:
-        """Create a HeteroData graph from the user-defined metagraph.
+        """Create a PyG graph from the user-defined metagraph. DOES carry
+            over node/edge features/labels, based on **metagraph**.
 
         :param name: The PyG graph name.
         :type name: str
         :param metagraph: An object defining vertex & edge collections to import
-            to PyG, along with the name of the node & edge feature matrices, and
-            the target label.
+            to PyG, along with the name of the node/edge feature matrices and
+            the target label attribute names used in ArangoDB.
+            See below for an example of **metagraph**
         :type metagraph: adbpyg_adapter.typings.ArangoMetagraph
         :param query_options: Keyword arguments to specify AQL query options when
             fetching documents from the ArangoDB instance. Full parameter list:
             https://docs.python-arango.com/en/main/specs.html#arango.aql.AQL.execute
         :type query_options: Any
-        :return: A PyG HeteroData
-        :rtype: torch_geometric.data.HeteroData
-        :raise ValueError: If missing required keys in metagraph
+        :return: A PyG Data or HeteroData object
+        :rtype: torch_geometric.data.Data | torch_geometric.data.HeteroData
 
         Here is an example entry for parameter **metagraph**:
 
         .. code-block:: python
         {
             "vertexCollections": {
-                "account": {'x': 'features', 'y': 'balance'},
-                "bank": {'x': 'features'},
-                "customer": {'x': 'features'},
+                "v0": {'x': 'v0_features', 'y': 'label'},
+                "v1": {'x': 'v1_features'},
+                "v2": {'x': 'v2_features'},
             },
             "edgeCollections": {
-                "accountHolder": {},
-                "transaction": {'edge_attr': 'features'},
+                "e0": {'edge_attr': 'e0_features'},
+                "e1": {'edge_weight': 'edge_weight'},
             },
         }
+
+        For example, this metagraph specifies that each document
+        within the "v0" collection has a feature matrix named "v0_features",
+        and also has a node label named "label". We map these keys to "x"
+        and "y" to create the standard PyG object.
         """
         logger.debug(f"--arangodb_to_pyg('{name}')--")
 
@@ -197,7 +207,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         e_cols: Set[str],
         **query_options: Any,
     ) -> HeteroData:
-        """Create a PyG graph from ArangoDB collections.
+        """Create a PyG graph from ArangoDB collections. Does NOT carry
+            over node/edge features/labels.
 
         :param name: The PyG graph name.
         :type name: str
@@ -210,8 +221,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             fetching documents from the ArangoDB instance. Full parameter list:
             https://docs.python-arango.com/en/main/specs.html#arango.aql.AQL.execute
         :type query_options: Any
-        :return: A PyG HeteroData
-        :rtype: torch_geometric.data.HeteroData
+        :return: A PyG Data or HeteroData object
+        :rtype: torch_geometric.data.Data | torch_geometric.data.HeteroData
         """
         metagraph: ArangoMetagraph = {
             "vertexCollections": {col: dict() for col in v_cols},
@@ -221,7 +232,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         return self.arangodb_to_pyg(name, metagraph, **query_options)
 
     def arangodb_graph_to_pyg(self, name: str, **query_options: Any) -> HeteroData:
-        """Create a PyG graph from an ArangoDB graph.
+        """Create a PyG graph from an ArangoDB graph. Does NOT carry
+            over node/edge features/labels.
 
         :param name: The ArangoDB graph name.
         :type name: str
@@ -229,8 +241,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             fetching documents from the ArangoDB instance. Full parameter list:
             https://docs.python-arango.com/en/main/specs.html#arango.aql.AQL.execute
         :type query_options: Any
-        :return: A PyG HeteroData
-        :rtype: torch_geometric.data.HeteroData
+        :return: A PyG Data or HeteroData object
+        :rtype: torch_geometric.data.Data | torch_geometric.data.HeteroData
         """
         graph = self.__db.graph(name)
         v_cols = graph.vertex_collections()
@@ -345,7 +357,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         return adb_graph
 
     def etypes_to_edefinitions(self, edge_types: List[EdgeType]) -> List[Json]:
-        """Converts a PyG graph's edge_types property to ArangoDB graph edge_definitions
+        """Converts PyG edge_types to ArangoDB edge_definitions
 
         :param edge_types: A list of string triplets (str, str, str) for
             source node type, edge type and destination node type.
