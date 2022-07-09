@@ -14,6 +14,8 @@ from torch_geometric.data import Data, HeteroData
 from torch_geometric.data.storage import EdgeStorage, NodeStorage
 from torch_geometric.typing import EdgeType
 
+from adbpyg_adapter.controller import ADBPyG_Controller
+
 from .abc import Abstract_ADBPyG_Adapter
 from .typings import ArangoMetagraph, DEFAULT_PyG_METAGRAPH, Json, PyGMetagraph
 from .utils import logger
@@ -33,6 +35,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
     def __init__(
         self,
         db: Database,
+        controller: ADBPyG_Controller = ADBPyG_Controller(),
         logging_lvl: Union[str, int] = logging.INFO,
     ):
         self.set_logging(logging_lvl)
@@ -41,7 +44,12 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             msg = "**db** parameter must inherit from arango.database.Database"
             raise TypeError(msg)
 
+        if issubclass(type(controller), ADBPyG_Controller) is False:
+            msg = "**controller** parameter must inherit from ADBPyG_Controller"
+            raise TypeError(msg)
+
         self.__db = db
+        self.__cntrl: ADBPyG_Controller = controller
 
         logger.info(f"Instantiated ADBPYG_Adapter with database '{db.name}'")
 
@@ -285,8 +293,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                     except ValueError:
                         adb_vertex[metagraph["y"]] = node_label.tolist()
 
-                # TODO: Users can set custom ADB attributes here
-                # self.__cntrl.prepare_adb_vertex(adb_vertex, v_col)
+                self.__cntrl._prepare_arangodb_vertex(adb_vertex, v_col)
                 v_col_docs.append(adb_vertex)
 
             self.__insert_adb_docs(v_col, v_col_docs, import_options)
@@ -328,8 +335,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                     except ValueError:
                         adb_edge[metagraph["y"]] = edge_label.tolist()
 
-                # TODO: Users can set custom ADB attributes here
-                # self.__cntrl.prepare_adb_edge(adb_edge, edge_type)
+                self.__cntrl._prepare_arangodb_edge(adb_edge, edge_type)
                 e_col_docs.append(adb_edge)
 
             self.__insert_adb_docs(e_col, e_col_docs, import_options)
