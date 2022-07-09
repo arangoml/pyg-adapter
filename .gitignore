@@ -116,3 +116,6 @@ localdata/
 adbpyg_adapter/version.py
 
 .vscode
+
+# PyG Data
+tests/data/pyg
