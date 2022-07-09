@@ -37,6 +37,7 @@ setup(
             "coveralls>=3.3.1",
             "types-setuptools",
             "types-requests",
+            "networkx" # for testing purposes
         ],
     },
     classifiers=[

@@ -13,7 +13,6 @@ from torch.functional import Tensor
 from torch_geometric.data import Data, HeteroData
 from torch_geometric.data.storage import EdgeStorage, NodeStorage
 from torch_geometric.typing import EdgeType
-from tqdm import tqdm
 
 from .abc import Abstract_ADBPyG_Adapter
 from .typings import ArangoMetagraph, DEFAULT_PyG_METAGRAPH, Json, PyGMetagraph
@@ -55,7 +54,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
     def arangodb_to_pyg(
         self, name: str, metagraph: ArangoMetagraph, **query_options: Any
-    ) -> HeteroData:
+    ) -> Union[Data, HeteroData]:
         """Create a HeteroData graph from the user-defined metagraph.
 
         :param name: The PyG graph name.
@@ -286,6 +285,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                     except ValueError:
                         adb_vertex[metagraph["y"]] = node_label.tolist()
 
+                # TODO: Users can set custom ADB attributes here
+                # self.__cntrl.prepare_adb_vertex(adb_vertex, v_col)
                 v_col_docs.append(adb_vertex)
 
             self.__insert_adb_docs(v_col, v_col_docs, import_options)
@@ -318,7 +319,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
                 if has_edge_feature_matrix:
                     edge_features: Tensor = edge_data.edge_attr[i]
-                    adb_edge[metagraph["edge_weight"]] = edge_features.tolist()
+                    adb_edge[metagraph["edge_attr"]] = edge_features.tolist()
 
                 if has_edge_target_label:
                     edge_label: Tensor = edge_data.y[i]
@@ -327,6 +328,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                     except ValueError:
                         adb_edge[metagraph["y"]] = edge_label.tolist()
 
+                # TODO: Users can set custom ADB attributes here
+                # self.__cntrl.prepare_adb_edge(adb_edge, edge_type)
                 e_col_docs.append(adb_edge)
 
             self.__insert_adb_docs(e_col, e_col_docs, import_options)

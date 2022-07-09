@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from abc import ABC
-from typing import Any, Dict, List, Set, Union
+from typing import Any, List, Set, Union
 
 from arango.graph import Graph as ArangoDBGraph
 from torch_geometric.data import Data, HeteroData
@@ -46,12 +46,3 @@ class Abstract_ADBPyG_Adapter(ABC):
 
     def __insert_adb_docs(self) -> None:
         raise NotImplementedError  # pragma: no cover
-
-    @property
-    def DEFAULT_PyG_METAGRAPH(self) -> Dict[str, str]:
-        return {
-            "x": "x",
-            "y": "y",
-            "edge_attr": "edge_attr",
-            "edge_weight": "edge_weight",
-        }
