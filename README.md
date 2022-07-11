@@ -42,11 +42,11 @@ pip install git+https://github.com/arangoml/pyg-adapter.git
 from arango import ArangoClient  # Python-Arango driver
 from torch_geometric.datasets import FakeDataset, FakeHeteroDataset # Sample graphs form PyG
 
-from adbpyg_adapter import ADBPYG_Adapter
+from adbpyg_adapter import ADBPyG_Adapter
 
 db = ArangoClient(hosts="http://localhost:8529").db("_system", username="root", password="")
 
-adbpyg_adapter = ADBPYG_Adapter(db, loggin_lvl=1)
+adbpyg_adapter = ADBPyG_Adapter(db)
 
 homo_data = FakeDataset(edge_dim=1)[0]
 hetero_data = FakeHeteroDataset(edge_dim=2)[0]
