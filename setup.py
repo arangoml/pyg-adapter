@@ -24,7 +24,7 @@ setup(
         "torch-scatter>=2.0.9",
         "torch-geometric>=2.0.4",
         "torch-cluster>=1.6.0",
-        # "tqdm>=4.64.0", # TODO: Re-introduce in the near future
+        "tqdm>=4.64.0",
         "setuptools>=45",
     ],
     extras_require={
