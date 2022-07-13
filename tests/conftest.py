@@ -121,7 +121,4 @@ def get_social_graph() -> HeteroData:
     data["user"].x = tensor([[21], [16], [38], [64]])
     data[("user", "plays", "game")].edge_attr = tensor([[3], [5]])
 
-    print("ANTHONY")
-    print(data)
-
     return data

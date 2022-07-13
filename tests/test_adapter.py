@@ -184,7 +184,7 @@ def test_adb_to_pyg(
     "adapter, name, v_cols, e_cols, pyg_g_old",
     [(adbpyg_adapter, "SocialGraph", {"user", "game"}, {"plays"}, get_social_graph())],
 )
-def test_adb_collections_to_dgl(
+def test_adb_collections_to_pyg(
     adapter: ADBPyG_Adapter,
     name: str,
     v_cols: Set[str],
@@ -220,7 +220,7 @@ def test_adb_collections_to_dgl(
     "adapter, name, pyg_g_old",
     [(adbpyg_adapter, "FakeHeterogeneous", get_fake_hetero_graph(avg_num_nodes=2))],
 )
-def test_adb_graph_to_dgl(
+def test_adb_graph_to_pyg(
     adapter: ADBPyG_Adapter, name: str, pyg_g_old: Union[Data, HeteroData]
 ) -> None:
     # re-create the ArangoDB graph since we delete the ones above
@@ -394,14 +394,14 @@ def assert_pyg_data(pyg_g: Union[Data, HeteroData], metagraph: ArangoMetagraph) 
             assert collection_count == edge_data.num_edges
 
             for i, edge in enumerate(collection):
-                from_adb_id = int(str(edge["_from"]).split("/")[1])
-                to_adb_id = int(str(edge["_to"]).split("/")[1])
+                from_adb_key = int(str(edge["_from"]).split("/")[1])
+                to_adb_key = int(str(edge["_to"]).split("/")[1])
 
                 from_pyg_id: Tensor = edge_data.edge_index[0][i]
                 to_pyg_id: Tensor = edge_data.edge_index[1][i]
 
-                assert from_adb_id == from_pyg_id.item()
-                assert to_adb_id == to_pyg_id.item()
+                assert from_adb_key == from_pyg_id.item()
+                assert to_adb_key == to_pyg_id.item()
 
                 if has_edge_weight_list:
                     assert "edge_weight" in edge_data
@@ -438,11 +438,8 @@ def assert_pyg_data(pyg_g: Union[Data, HeteroData], metagraph: ArangoMetagraph) 
             for edge in collection:
                 edge_matches[edge["_id"]] = False
 
-                from_adb_col, from_adb_id = edge["_from"].split("/")
-                to_adb_col, to_adb_id = edge["_to"].split("/")
-
-                from_adb_id = int(str(edge["_from"]).split("/")[1])
-                to_adb_id = int(str(edge["_to"]).split("/")[1])
+                from_adb_col, from_adb_key = edge["_from"].split("/")
+                to_adb_col, to_adb_key = edge["_to"].split("/")
 
                 # Find the ArangoDB edge somewhere within the PyG graph
                 for edge_type in edge_type_map[e_col]:
@@ -457,8 +454,8 @@ def assert_pyg_data(pyg_g: Union[Data, HeteroData], metagraph: ArangoMetagraph) 
                         zip(*(edge_data.edge_index.tolist()))
                     ):
                         if (
-                            int(from_adb_id) == from_pyg_id
-                            and int(to_adb_id) == to_pyg_id
+                            int(from_adb_key) == from_pyg_id
+                            and int(to_adb_key) == to_pyg_id
                         ):
                             edge_matches[edge["_id"]] = True
 
