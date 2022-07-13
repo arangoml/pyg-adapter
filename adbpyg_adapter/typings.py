@@ -1,9 +1,10 @@
 __all__ = ["Json", "ArangoMetagraph", "PyGMetagraph", "DEFAULT_PyG_METAGRAPH"]
 
-from typing import Any, Dict
+from typing import Any, Dict, Union
 
 Json = Dict[str, Any]
-ArangoMetagraph = Dict[str, Dict[str, Dict[str, str]]]
+PyGEncoder = object
+ArangoMetagraph = Dict[str, Dict[str, Dict[str, Union[str, Dict[str, PyGEncoder]]]]]
 PyGMetagraph = Dict[str, str]
 
 DEFAULT_PyG_METAGRAPH = {
