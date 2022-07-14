@@ -9,8 +9,7 @@ from arango.database import Database
 from arango.graph import Graph as ADBGraph
 from arango.result import Result
 from pandas import DataFrame
-from torch import cat, tensor
-from torch.functional import Tensor
+from torch import Tensor, cat, tensor
 from torch_geometric.data import Data, HeteroData
 from torch_geometric.data.storage import EdgeStorage, NodeStorage
 from torch_geometric.typing import EdgeType
@@ -63,7 +62,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         self.__db = db
         self.__cntrl: ADBPyG_Controller = controller
 
-        logger.info(f"Instantiated ADBPYG_Adapter with database '{db.name}'")
+        logger.info(f"Instantiated ADBPyG_Adapter with database '{db.name}'")
 
     @property
     def db(self) -> Database:
@@ -435,7 +434,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             data = []
             for attr, encoder in meta_val.items():  # type: ignore # (false positive)
                 if encoder is None:
-                    data.append(df[attr])
+                    data.append(tensor(df[attr].to_list()))
                 else:
                     data.append(encoder(df[attr]))  # type: ignore
 
