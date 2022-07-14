@@ -55,17 +55,17 @@ db = ArangoClient(hosts="http://localhost:8529").db("_system", username="root", 
 adbpyg_adapter = ADBPyG_Adapter(db)
 
 # Use Case 1: PyG to ArangoDB
-hetero_data = FakeHeteroDataset(edge_dim=2)[0]
-adbpyg_adapter.pyg_to_arangodb("FakeHeteroData", hetero_data)
+data = FakeHeteroDataset(edge_dim=2)[0] # data = FakeDataset(edge_dim=1)[0]
+adbpyg_adapter.pyg_to_arangodb("FakeData", data)
 
 # Use Case 2.1: ArangoDB to PyG via Graph name
-pyg_hetero = adbpyg_adapter.arangodb_graph_to_pyg("FakeHeteroData")
+pyg_g = adbpyg_adapter.arangodb_graph_to_pyg("FakeData")
 
 # Use Case 2.2: ArangoDB to PyG via Collection names
-pyg_hetero = adbpyg_adapter.arangodb_collections_to_pyg("FakeHeteroData", v_cols={"v0", "v1", "v2"}, e_cols={"e0"})
+pyg_g = adbpyg_adapter.arangodb_collections_to_pyg("FakeData", v_cols={"v0", "v1", "v2"}, e_cols={"e0"})
 
 # Use Case 2.3: ArangoDB to PyG via Metagraph v1 (ArangoDB attributes are already formatted to PyG data standards)
-hetero_metagraph = {
+metagraph_v1 = {
     "vertexCollections": {
         "v0": {"x": "x", "y": "y"},
         "v1": {"x": "x"},
@@ -75,10 +75,10 @@ hetero_metagraph = {
         "e0": {"edge_attr": "edge_attr"},
     },
 }
-pyg_hetero = adbpyg_adapter.arangodb_to_pyg("FakeHeteroData", hetero_metagraph)
+pyg_hetero = adbpyg_adapter.arangodb_to_pyg("FakeData", metagraph_v1)
 
 # Use Case 2.4: ArangoDB to PyG via Metagraph v2 (ArangoDB attributes are transformed to fit PyG data standards via user-defined Encoders)
-imdb_metagraph = {
+metagraph_v2 = {
     "vertexCollections": {
         "Movies": {
             "x": {"Action": IdentityEncoder(dtype=long)},
@@ -99,7 +99,7 @@ imdb_metagraph = {
         }
     },
 }
-pyg_imdb = adbpyg_adapter.arangodb_to_pyg("IMDB", imdb_metagraph)
+pyg_imdb = adbpyg_adapter.arangodb_to_pyg("IMDB", metagraph_v2)
 ```
 
 ##  Development & Testing
