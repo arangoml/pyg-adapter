@@ -7,7 +7,9 @@ from typing import Any
 from arango import ArangoClient
 from arango.database import StandardDatabase
 from arango.http import DefaultHTTPClient
-from torch import tensor
+from pandas import DataFrame
+from sentence_transformers import SentenceTransformer
+from torch import no_grad, tensor
 from torch_geometric.data import Data, HeteroData
 from torch_geometric.datasets import Amazon, FakeDataset, FakeHeteroDataset, KarateClub
 
@@ -50,39 +52,34 @@ def pytest_configure(config: Any) -> None:
     )
 
     global adbpyg_adapter
-    adbpyg_adapter = ADBPyG_Adapter(db, logging_lvl=logging.WARN)
+    adbpyg_adapter = ADBPyG_Adapter(db, logging_lvl=logging.DEBUG)
 
-    # # Restore fraud dataset via arangorestore
-    # arango_restore(con, "examples/data/fraud_dump")
+    # Restore fraud dataset via arangorestore
+    arango_restore(con, "tests/data/adb/imdb_dump")
 
-    # # Create Fraud Detection Graph
-    # adbdgl_adapter.db.delete_graph("fraud-detection", ignore_missing=True)
-    # adbdgl_adapter.db.create_graph(
-    #     "fraud-detection",
-    #     edge_definitions=[
-    #         {
-    #             "edge_collection": "accountHolder",
-    #             "from_vertex_collections": ["customer"],
-    #             "to_vertex_collections": ["account"],
-    #         },
-    #         {
-    #             "edge_collection": "transaction",
-    #             "from_vertex_collections": ["account"],
-    #             "to_vertex_collections": ["account"],
-    #         },
-    #     ],
-    # )
+    # Create Fraud Detection Graph
+    db.delete_graph("imdb-movies", ignore_missing=True)
+    db.create_graph(
+        "imdb-movies",
+        edge_definitions=[
+            {
+                "edge_collection": "Ratings",
+                "from_vertex_collections": ["Users"],
+                "to_vertex_collections": ["Movies"],
+            },
+        ],
+    )
 
 
 def arango_restore(con: Json, path_to_data: str) -> None:
-    restore_prefix = "./assets/" if os.getenv("GITHUB_ACTIONS") else ""
+    restore_prefix = "./tools/" if os.getenv("GITHUB_ACTIONS") else ""
     protocol = "http+ssl://" if "https://" in con["url"] else "tcp://"
     url = protocol + con["url"].partition("://")[-1]
     # A small hack to work around empty passwords
     password = f"--server.password {con['password']}" if con["password"] else ""
 
     subprocess.check_call(
-        f'chmod -R 755 ./assets/arangorestore && {restore_prefix}arangorestore \
+        f'chmod -R 755 ./tools/arangorestore && {restore_prefix}arangorestore \
             -c none --server.endpoint {url} --server.database {con["dbName"]} \
                 --server.username {con["username"]} {password} \
                     --input-directory "{PROJECT_DIR}/{path_to_data}"',
@@ -122,3 +119,21 @@ def get_social_graph() -> HeteroData:
     data[("user", "plays", "game")].edge_attr = tensor([[3], [5]])
 
     return data
+
+
+class SequenceEncoder(object):
+    def __init__(
+        self, model_name: str = "all-MiniLM-L6-v2", device: Any = None
+    ) -> None:
+        self.device = device
+        self.model = SentenceTransformer(model_name, device=device)
+
+    @no_grad()
+    def __call__(self, df: DataFrame) -> Any:
+        x = self.model.encode(
+            df.values,
+            show_progress_bar=True,
+            convert_to_tensor=True,
+            device=self.device,
+        )
+        return x.cpu()

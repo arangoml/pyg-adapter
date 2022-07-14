@@ -1,16 +1,17 @@
-from collections import defaultdict
-from typing import Any, Dict, Set, Union
+from typing import Any, Dict, Optional, Set, Union
 
 import pytest
 from arango.graph import Graph as ArangoGraph
-from torch.functional import Tensor
+from torch import Tensor, long
 from torch_geometric.data import Data, HeteroData
 from torch_geometric.data.storage import EdgeStorage, NodeStorage
 
 from adbpyg_adapter import ADBPyG_Adapter
 from adbpyg_adapter.typings import ArangoMetagraph, DEFAULT_PyG_METAGRAPH, PyGMetagraph
+from adbpyg_adapter.utils import EnumEncoder, IdentityEncoder
 
 from .conftest import (
+    SequenceEncoder,
     adbpyg_adapter,
     db,
     get_fake_hetero_graph,
@@ -162,22 +163,67 @@ def test_pyg_to_adb(
             },
             get_fake_hetero_graph(avg_num_nodes=2, edge_dim=2),
         ),
+        (
+            adbpyg_adapter,
+            "OverComplicatedFakeHeterogeneous",
+            {
+                "vertexCollections": {
+                    "v0": {"x": {"x": None}, "y": {"y": None}},
+                    "v1": {"x": "x"},
+                    "v2": {"x": {"x": None}},
+                },
+                "edgeCollections": {
+                    "e0": {"edge_attr": {"edge_attr": None}},
+                },
+            },
+            get_fake_hetero_graph(avg_num_nodes=2, edge_dim=2),
+        ),
+        (
+            adbpyg_adapter,
+            "imdb-movies",
+            {
+                "vertexCollections": {
+                    "Movies": {
+                        "x": {
+                            "movie title": SequenceEncoder(),
+                            "Action": IdentityEncoder(),
+                        }
+                    },
+                    "Users": {
+                        "x": {
+                            "Gender": EnumEncoder(),
+                            # "Gender": EnumEncoder(mapping={'M': 0, 'F': 1}),
+                            "Age": IdentityEncoder(dtype=long),
+                        }
+                    },
+                },
+                "edgeCollections": {
+                    "Ratings": {
+                        "edge_weight": {
+                            "Rating": IdentityEncoder(dtype=long),
+                        }
+                    }
+                },
+            },
+            None,
+        ),
     ],
 )
 def test_adb_to_pyg(
     adapter: ADBPyG_Adapter,
     name: str,
     metagraph: ArangoMetagraph,
-    pyg_g_old: Union[Data, HeteroData],
+    pyg_g_old: Optional[Union[Data, HeteroData]],
 ) -> None:
-    # re-create the ArangoDB graph since we delete the ones above
-    db.delete_graph(name, drop_collections=True, ignore_missing=True)
-    adapter.pyg_to_arangodb(name, pyg_g_old)
+    if pyg_g_old:
+        db.delete_graph(name, drop_collections=True, ignore_missing=True)
+        adapter.pyg_to_arangodb(name, pyg_g_old)
 
     pyg_g_new = adapter.arangodb_to_pyg(name, metagraph)
     assert_pyg_data(pyg_g_new, metagraph)
 
-    db.delete_graph(name, drop_collections=True)
+    if pyg_g_old:
+        db.delete_graph(name, drop_collections=True, ignore_missing=True)
 
 
 @pytest.mark.parametrize(
@@ -191,9 +237,9 @@ def test_adb_collections_to_pyg(
     e_cols: Set[str],
     pyg_g_old: Union[Data, HeteroData],
 ) -> None:
-    # re-create the ArangoDB graph since we delete the ones above
-    db.delete_graph(name, drop_collections=True, ignore_missing=True)
-    adapter.pyg_to_arangodb(name, pyg_g_old)
+    if pyg_g_old:
+        db.delete_graph(name, drop_collections=True, ignore_missing=True)
+        adapter.pyg_to_arangodb(name, pyg_g_old)
 
     pyg_g_new = adapter.arangodb_collections_to_pyg(
         name,
@@ -203,7 +249,10 @@ def test_adb_collections_to_pyg(
 
     # Manually set the number of nodes (since nodes are feature-less)
     for v_col in v_cols:
-        pyg_g_new[v_col].num_nodes = pyg_g_old[v_col].num_nodes
+        if pyg_g_old:
+            pyg_g_new[v_col].num_nodes = pyg_g_old[v_col].num_nodes
+        else:
+            pyg_g_new[v_col].num_nodes = db.collection(v_col).count()
 
     assert_pyg_data(
         pyg_g_new,
@@ -213,19 +262,23 @@ def test_adb_collections_to_pyg(
         },
     )
 
-    db.delete_graph(name, drop_collections=True)
+    if pyg_g_old:
+        db.delete_graph(name, drop_collections=True, ignore_missing=True)
 
 
 @pytest.mark.parametrize(
     "adapter, name, pyg_g_old",
-    [(adbpyg_adapter, "FakeHeterogeneous", get_fake_hetero_graph(avg_num_nodes=2))],
+    [
+        (adbpyg_adapter, "FakeHeterogeneous", get_fake_hetero_graph(avg_num_nodes=2)),
+        (adbpyg_adapter, "imdb-movies", None),
+    ],
 )
 def test_adb_graph_to_pyg(
     adapter: ADBPyG_Adapter, name: str, pyg_g_old: Union[Data, HeteroData]
 ) -> None:
-    # re-create the ArangoDB graph since we delete the ones above
-    db.delete_graph(name, drop_collections=True, ignore_missing=True)
-    adapter.pyg_to_arangodb(name, pyg_g_old)
+    if pyg_g_old:
+        db.delete_graph(name, drop_collections=True, ignore_missing=True)
+        adapter.pyg_to_arangodb(name, pyg_g_old)
 
     arango_graph = db.graph(name)
     v_cols = arango_graph.vertex_collections()
@@ -235,7 +288,10 @@ def test_adb_graph_to_pyg(
 
     # Manually set the number of nodes (since nodes are feature-less)
     for v_col in v_cols:
-        pyg_g_new[v_col].num_nodes = pyg_g_old[v_col].num_nodes
+        if pyg_g_old:
+            pyg_g_new[v_col].num_nodes = pyg_g_old[v_col].num_nodes
+        else:
+            pyg_g_new[v_col].num_nodes = db.collection(v_col).count()
 
     assert_pyg_data(
         pyg_g_new,
@@ -245,7 +301,8 @@ def test_adb_graph_to_pyg(
         },
     )
 
-    db.delete_graph(name, drop_collections=True)
+    if pyg_g_old:
+        db.delete_graph(name, drop_collections=True, ignore_missing=True)
 
 
 def assert_arangodb_data(
@@ -354,6 +411,18 @@ def assert_pyg_data(pyg_g: Union[Data, HeteroData], metagraph: ArangoMetagraph) 
         and len(metagraph["edgeCollections"]) == 1
     )
 
+    edge_type_map = dict()
+    if is_homogeneous:
+        v_col = list(metagraph["vertexCollections"].keys())[0]
+        e_col = list(metagraph["edgeCollections"].keys())[0]
+        edge_type_map[(v_col, e_col, v_col)] = 0
+    else:
+        for edge_type in pyg_g.edge_types:
+            edge_type_map[edge_type] = 0
+
+    # Maps ArangoDB IDs to PyG IDs
+    adb_map = dict()
+
     y_val: Any  # ignore this for now
     for v_col, atribs in metagraph["vertexCollections"].items():
         node_data: NodeStorage = pyg_g if is_homogeneous else pyg_g[v_col]
@@ -362,10 +431,13 @@ def assert_pyg_data(pyg_g: Union[Data, HeteroData], metagraph: ArangoMetagraph) 
         collection = db.collection(v_col)
         assert num_nodes == collection.count()
 
-        has_node_feature_matrix = "x" in atribs
-        has_node_target_label = "y" in atribs
+        # TODO: Remove str restriction to introduce Encoder verificiation
+        has_node_feature_matrix = type(atribs.get("x")) is str
+        has_node_target_label = type(atribs.get("y")) is str
 
         for i, doc in enumerate(collection):
+            adb_map[doc["_id"]] = i
+
             if has_node_feature_matrix:
                 x: Tensor = node_data.x[i]
                 assert [float(num) for num in doc[atribs["x"]]] == x.tolist()
@@ -383,110 +455,44 @@ def assert_pyg_data(pyg_g: Union[Data, HeteroData], metagraph: ArangoMetagraph) 
     for e_col, atribs in metagraph["edgeCollections"].items():
         collection = db.collection(e_col)
         collection_count = collection.count()
+        assert collection_count == pyg_g.num_edges
 
-        has_edge_weight_list = "edge_weight" in atribs
-        has_edge_feature_matrix = "edge_attr" in atribs
-        has_edge_target_label = "y" in atribs
+        # TODO: Remove str restriction to introduce Encoder verificiation
+        has_edge_weight_list = type(atribs.get("edge_weight")) is str
+        has_edge_feature_matrix = type(atribs.get("edge_attr")) is str
+        has_edge_target_label = type(atribs.get("y")) is str
 
-        edge_data: EdgeStorage
-        if is_homogeneous:
-            edge_data = pyg_g
-            assert collection_count == edge_data.num_edges
+        for edge in collection:
+            from_adb_col = str(edge["_from"]).split("/")[0]
+            to_adb_col = str(edge["_to"]).split("/")[0]
 
-            for i, edge in enumerate(collection):
-                from_adb_key = int(str(edge["_from"]).split("/")[1])
-                to_adb_key = int(str(edge["_to"]).split("/")[1])
+            edge_type = (from_adb_col, e_col, to_adb_col)
+            edge_data: EdgeStorage = pyg_g if is_homogeneous else pyg_g[edge_type]
 
-                from_pyg_id: Tensor = edge_data.edge_index[0][i]
-                to_pyg_id: Tensor = edge_data.edge_index[1][i]
+            i = edge_type_map[edge_type]
+            from_pyg_id: Tensor = edge_data.edge_index[0][i]
+            to_pyg_id: Tensor = edge_data.edge_index[1][i]
 
-                assert from_adb_key == from_pyg_id.item()
-                assert to_adb_key == to_pyg_id.item()
+            assert adb_map[edge["_from"]] == from_pyg_id.item()
+            assert adb_map[edge["_to"]] == to_pyg_id.item()
 
-                if has_edge_weight_list:
-                    assert "edge_weight" in edge_data
-                    assert (
-                        edge[atribs["edge_weight"]] == edge_data.edge_weight[i].item()
-                    )
+            edge_type_map[edge_type] += 1
 
-                if has_edge_feature_matrix:
-                    assert "edge_attr" in edge_data
-                    assert edge[atribs["edge_attr"]] == edge_data.edge_attr[i].tolist()
+            if has_edge_weight_list:
+                assert "edge_weight" in edge_data
+                assert edge[atribs["edge_weight"]] == edge_data.edge_weight[i].item()
 
-                if has_edge_target_label:
-                    assert "y" in edge_data
+            if has_edge_feature_matrix:
+                assert "edge_attr" in edge_data
+                assert edge[atribs["edge_attr"]] == edge_data.edge_attr[i].tolist()
 
-                    y = edge_data.y[i]
-                    try:
-                        y_val = y.item()
-                    except ValueError:
-                        y_val = y.tolist()
+            if has_edge_target_label:
+                assert "y" in edge_data
 
-                    assert edge[atribs["y"]] == y_val
+                y = edge_data.y[i]
+                try:
+                    y_val = y.item()
+                except ValueError:
+                    y_val = y.tolist()
 
-        else:
-            edge_type_map = defaultdict(list)
-            for edge_type in pyg_g.edge_types:
-                # There can be multiple PyG edge types within
-                # the same ArangoDB edge collection
-                assert collection_count >= pyg_g[edge_type].num_edges
-
-                _, e_col, _ = edge_type
-                edge_type_map[e_col].append(edge_type)
-
-            edge_matches: Dict[str, bool] = {}
-            for edge in collection:
-                edge_matches[edge["_id"]] = False
-
-                from_adb_col, from_adb_key = edge["_from"].split("/")
-                to_adb_col, to_adb_key = edge["_to"].split("/")
-
-                # Find the ArangoDB edge somewhere within the PyG graph
-                for edge_type in edge_type_map[e_col]:
-                    from_ntype, _, to_ntype = edge_type
-
-                    if from_adb_col != from_ntype or to_adb_col != to_ntype:
-                        continue
-
-                    edge_data = pyg_g[edge_type]
-
-                    for i, (from_pyg_id, to_pyg_id) in enumerate(
-                        zip(*(edge_data.edge_index.tolist()))
-                    ):
-                        if (
-                            int(from_adb_key) == from_pyg_id
-                            and int(to_adb_key) == to_pyg_id
-                        ):
-                            edge_matches[edge["_id"]] = True
-
-                            if has_edge_weight_list:
-                                assert "edge_weight" in edge_data
-                                assert (
-                                    edge[atribs["edge_weight"]]
-                                    == edge_data.edge_weight[i].item()
-                                )
-
-                            if has_edge_feature_matrix:
-                                assert "edge_attr" in edge_data
-                                assert (
-                                    edge[atribs["edge_attr"]]
-                                    == edge_data.edge_attr[i].tolist()
-                                )
-
-                            if has_edge_target_label:
-                                assert "y" in edge_data
-
-                                y = edge_data.y[i]
-                                try:
-                                    y_val = y.item()
-                                except ValueError:
-                                    y_val = y.tolist()
-
-                                assert edge[atribs["y"]] == y_val
-
-                            break
-
-            assert collection_count == len(edge_matches.keys())
-            assert all(
-                [edge_matches[edge_id] is True for edge_id in edge_matches.keys()]
-            )
+                assert edge[atribs["y"]] == y_val
