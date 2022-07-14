@@ -16,10 +16,14 @@
 <a href="https://www.arangodb.com/" rel="arangodb.com">![](./examples/assets/adb_logo.png)</a>
 <a href="https://www.pyg.org/" rel="pyg.org"><img src="https://raw.githubusercontent.com/pyg-team/pyg_sphinx_theme/master/pyg_sphinx_theme/static/img/pyg_logo_text.svg?sanitize=true" width=40% /></a>
 
-The ArangoDB-PyG Adapter exports Graphs from ArangoDB, the multi-model database for graph & beyond, into PyTorch Geometric (PyG), ________, and vice-versa.
-
+The ArangoDB-PyG Adapter exports Graphs from ArangoDB, the multi-model database for graph & beyond, into PyTorch Geometric (PyG), a PyTorch-based Graph Neural Network library, and vice-versa.
 
 ## About PyG
+
+**PyG** *(PyTorch Geometric)* is a library built upon [PyTorch](https://pytorch.org/) to easily write and train Graph Neural Networks (GNNs) for a wide range of applications related to structured data.
+
+It consists of various methods for deep learning on graphs and other irregular structures, also known as *[geometric deep learning](http://geometricdeeplearning.com/)*, from a variety of published papers.
+In addition, it consists of easy-to-use mini-batch loaders for operating on many small and single giant graphs, [multi GPU-support](https://github.com/pyg-team/pytorch_geometric/tree/master/examples/multi_gpu), [`DataPipe` support](https://github.com/pyg-team/pytorch_geometric/blob/master/examples/datapipe.py), distributed graph learning via [Quiver](https://github.com/pyg-team/pytorch_geometric/tree/master/examples/quiver), a large number of common benchmark datasets (based on simple interfaces to create your own), the [GraphGym](https://pytorch-geometric.readthedocs.io/en/latest/notes/graphgym.html) experiment manager, and helpful transforms, both for learning on arbitrary graphs as well as on 3D meshes or point clouds.
 
 ## Installation
 
@@ -43,37 +47,24 @@ from arango import ArangoClient  # Python-Arango driver
 from torch_geometric.datasets import FakeDataset, FakeHeteroDataset # Sample graphs form PyG
 
 from adbpyg_adapter import ADBPyG_Adapter
+from adbpyg_adapter.utils import IdentityEncoder, EnumEncoder
 
+# Let's assume that the ArangoDB "IMDB" dataset is imported to this endpoint
 db = ArangoClient(hosts="http://localhost:8529").db("_system", username="root", password="")
 
 adbpyg_adapter = ADBPyG_Adapter(db)
 
-homo_data = FakeDataset(edge_dim=1)[0]
-hetero_data = FakeHeteroDataset(edge_dim=2)[0]
-
 # Use Case 1: PyG to ArangoDB
-adbpyg_adapter.pyg_to_arangodb("FakeHomoData", homo_data)
+hetero_data = FakeHeteroDataset(edge_dim=2)[0]
 adbpyg_adapter.pyg_to_arangodb("FakeHeteroData", hetero_data)
 
 # Use Case 2.1: ArangoDB to PyG via Graph name
-pyg_homo = adbpyg_adapter.arangodb_graph_to_pyg("FakeHomoData")
 pyg_hetero = adbpyg_adapter.arangodb_graph_to_pyg("FakeHeteroData")
 
 # Use Case 2.2: ArangoDB to PyG via Collection names
-pyg_homo = adbpyg_adapter.arangodb_collections_to_pyg("FakeHomoData", v_cols={'FakeHomoData_N'}, e_cols={'FakeHomoData_E'})
-pyg_hetero = adbpyg_adapter.arangodb_collections_to_pyg("FakeHeteroData", v_cols={'v0', 'v1', 'v2'}, e_cols={'e0'})
+pyg_hetero = adbpyg_adapter.arangodb_collections_to_pyg("FakeHeteroData", v_cols={"v0", "v1", "v2"}, e_cols={"e0"})
 
-# Use Case 2.3: ArangoDB to PyG via Metagraph
-homo_metagraph = {
-    "vertexCollections": {
-        "FakeHomoData_N": {"x": "x", "y": "y"},
-    },
-    "edgeCollections": {
-        "FakeHomoData_E": {"edge_weight": "edge_weight"},
-    },
-}
-new_homo_data = adbpyg_adapter.arangodb_to_pyg("FakeHomoData", homo_metagraph)
-
+# Use Case 2.3: ArangoDB to PyG via Metagraph v1 (ArangoDB attributes are already formatted to PyG data standards)
 hetero_metagraph = {
     "vertexCollections": {
         "v0": {"x": "x", "y": "y"},
@@ -85,9 +76,33 @@ hetero_metagraph = {
     },
 }
 pyg_hetero = adbpyg_adapter.arangodb_to_pyg("FakeHeteroData", hetero_metagraph)
+
+# Use Case 2.4: ArangoDB to PyG via Metagraph v2 (ArangoDB attributes are transformed to fit PyG data standards via user-defined Encoders)
+imdb_metagraph = {
+    "vertexCollections": {
+        "Movies": {
+            "x": {"Action": IdentityEncoder(dtype=long)},
+            "y": {"Comedy": IdentityEncoder(dtype=long)},
+        },
+        "Users": {
+            "x": {
+                "Gender": EnumEncoder(mapping={"M": 0, "F": 1}),
+                "Age": IdentityEncoder(dtype=long),
+            }
+        },
+    },
+    "edgeCollections": {
+        "Ratings": {
+            "edge_weight": {
+                "Rating": IdentityEncoder(dtype=long),
+            }
+        }
+    },
+}
+pyg_imdb = adbpyg_adapter.arangodb_to_pyg("IMDB", imdb_metagraph)
 ```
 
-##  Development & Testing (Not Yet Ready)
+##  Development & Testing
 
 Prerequisite: `arangorestore`
 
