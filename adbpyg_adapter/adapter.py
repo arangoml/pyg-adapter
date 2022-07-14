@@ -68,6 +68,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
     def db(self) -> Database:
         return self.__db  # pragma: no cover
 
+    @property
+    def cntrl(self) -> Database:
+        return self.__cntrl  # pragma: no cover
+
     def set_logging(self, level: Union[int, str]) -> None:
         logger.setLevel(level)
 
@@ -75,14 +79,14 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         self, name: str, metagraph: ArangoMetagraph, **query_options: Any
     ) -> Union[Data, HeteroData]:
         """Create a PyG graph from the user-defined metagraph. DOES carry
-            over node/edge features/labels, based on **metagraph**.
+            over node/edge features/labels, via the **metagraph**.
 
         :param name: The PyG graph name.
         :type name: str
         :param metagraph: An object defining vertex & edge collections to import
-            to PyG, along with the name of the node/edge feature matrices and
-            the target label attribute names used in ArangoDB.
-            See below for an example of **metagraph**
+            to PyG, along with collection-level specifications to indicate
+            which ArangoDB attributes will become PyG features/labels.
+            See below for examples of **metagraph**
         :type metagraph: adbpyg_adapter.typings.ArangoMetagraph
         :param query_options: Keyword arguments to specify AQL query options when
             fetching documents from the ArangoDB instance. Full parameter list:
@@ -91,7 +95,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :return: A PyG Data or HeteroData object
         :rtype: torch_geometric.data.Data | torch_geometric.data.HeteroData
 
-        Here is an example entry for parameter **metagraph**:
+        1) Here is an example entry for parameter **metagraph**:
 
         .. code-block:: python
         {
@@ -106,29 +110,41 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             },
         }
 
-        For example, this metagraph specifies that each document
-        within the "v0" collection has a feature matrix named "v0_features",
-        and also has a node label named "label". We map these keys to "x"
-        and "y" to create the standard PyG object.
+        The metagraph above specifies that each document
+        within the "v0" collection has a "pre-built" feature matrix
+        named "v0_features", and also has a node label named "label".
+        We map these keys to the "x" and "y" properties of a standard
+        PyG graph.
 
-
+        2) Here is another example entry for parameter **metagraph**:
+        .. code-block:: python
         {
             "vertexCollections": {
-                "v0": {
-                    'x': {
-                        'a': IdentityEncoder(dtype=torch.long),
-                        'b': SentenceEncoder()
-                    },
-                    'y': SentenceEncoder()
+                "Movies": {
+                    "x": {
+                        "movie title": SequenceEncoder(),
+                        "Action": IdentityEncoder(),
+                    }
                 },
-                "v1": {'x': 'v1_features'},
-                "v2": {'x': 'v2_features'},
+                "Users": {
+                    "x": {
+                        "Gender": EnumEncoder(),
+                        "Age": IdentityEncoder(dtype=long),
+                    }
+                },
             },
             "edgeCollections": {
-                "e0": {'edge_attr': 'e0_features'},
-                "e1": {'edge_weight': 'edge_weight'},
+                "Ratings": {
+                    "edge_weight": {
+                        "Rating": IdentityEncoder(dtype=long),
+                    }
+                }
             },
         }
+
+        The metagraph above will build the "Movies" feature matrix
+        using the 'movie title' & 'Action' attributes, by reling on
+        the user-specified Encoders (see adbpyg_adapter.utils for examples).
         """
         logger.debug(f"--arangodb_to_pyg('{name}')--")
 
@@ -201,8 +217,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         e_cols: Set[str],
         **query_options: Any,
     ) -> HeteroData:
-        """Create a PyG graph from ArangoDB collections. Does NOT carry
-            over node/edge features/labels.
+        """Create a PyG graph from ArangoDB collections. Due to risk of
+            ambiguity, this method DOES NOT transfer ArangoDB attributes to PyG.
 
         :param name: The PyG graph name.
         :type name: str
@@ -226,8 +242,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         return self.arangodb_to_pyg(name, metagraph, **query_options)
 
     def arangodb_graph_to_pyg(self, name: str, **query_options: Any) -> HeteroData:
-        """Create a PyG graph from an ArangoDB graph. Does NOT carry
-            over node/edge features/labels.
+        """Create a PyG graph from an ArangoDB graph. Due to risk of
+            ambiguity, this method DOES NOT transfer ArangoDB attributes to PyG.
 
         :param name: The ArangoDB graph name.
         :type name: str
@@ -252,6 +268,43 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         overwrite_graph: bool = False,
         **import_options: Any,
     ) -> ADBGraph:
+        """Create an ArangoDB graph from a PyG graph.
+
+        :param name: The ArangoDB graph name.
+        :type name: str
+        :param pyg_g: The existing PyG graph.
+        :type pyg_g: Data | HeteroData
+        :param metagraph: An object mapping the PyG standard properties
+            (i.e "x", "y", "edge_weight", "edge_attr") to user-defined
+            strings, which will be used as the ArangoDB attribute names.
+            If not specified, defaults to the built-in metagraph.
+            See below for an example of **metagraph**.
+        :type metagraph: adbpyg_adapter.typings.PyGMetagraph
+        :param overwrite_graph: Overwrites the graph if it already exists.
+            Does not drop associated collections.
+        :type overwrite_graph: bool
+        :param import_options: Keyword arguments to specify additional
+            parameters for ArangoDB document insertion. Full parameter list:
+            https://docs.python-arango.com/en/main/specs.html#arango.collection.Collection.import_bulk
+        :type import_options: Any
+        :return: The ArangoDB Graph API wrapper.
+        :rtype: arango.graph.Graph
+
+
+        1) Here is an example entry for parameter **metagraph**:
+
+        .. code-block:: python
+        {
+            "x": "node_features",
+            "y": "label",
+            "edge_weight": "weight",
+            "edge_attr": "edge_features"
+        }
+
+        Using the metagraph above will represent the "x" property of the
+        PyG graph as "node_features" in ArangoDB, and the "y" property as
+        "label".
+        """
         logger.debug(f"--pyg_to_arangodb('{name}')--")
 
         is_homogeneous = type(pyg_g) is Data
@@ -304,7 +357,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                     except ValueError:
                         adb_vertex[metagraph["y"]] = node_label.tolist()
 
-                self.__cntrl._prepare_arangodb_vertex(adb_vertex, v_col)
+                self.__cntrl._prepare_pyg_edge(adb_vertex, v_col)
                 v_col_docs.append(adb_vertex)
 
             self.__insert_adb_docs(v_col, v_col_docs, import_options)
@@ -354,7 +407,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                     except ValueError:
                         adb_edge[metagraph["y"]] = edge_label.tolist()
 
-                self.__cntrl._prepare_arangodb_edge(adb_edge, edge_type)
+                self.__cntrl._prepare_pyg_edge(adb_edge, edge_type)
                 e_col_docs.append(adb_edge)
 
             self.__insert_adb_docs(e_col, e_col_docs, import_options)
@@ -425,12 +478,21 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
     def __build_pyg_data(
         self, meta_val: Union[str, Dict[str, PyGEncoder]], df: DataFrame
     ) -> Tensor:
-        meta_type = type(meta_val)
+        """Builds PyG-ready Tensors from Pandas Dataframes, based on
+        the nature of the user-defined metagraph.
 
-        if meta_type is str:
+        :param meta_val: The value associated to PyG metagraph key.
+            e.g the value of `metagraph['vertexCollections']['users']['x']`
+        :type meta_val: str | dict
+        :param df: The Pandas Dataframe representing ArangoDB data.
+        :type df: pandas.DataFrame
+        :return: A PyG-ready tensor
+        :rtype: torch.Tensor
+        """
+        if type(meta_val) is str:
             return tensor(df[meta_val].to_list())
 
-        elif meta_type is dict:
+        elif type(meta_val) is dict:
             data = []
             for attr, encoder in meta_val.items():  # type: ignore # (false positive)
                 if encoder is None:
