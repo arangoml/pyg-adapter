@@ -350,7 +350,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 except ValueError:
                     df[metagraph["y"]] = y.tolist()
 
-            df.apply(lambda node: self.__cntrl._prepare_pyg_node(node, v_col), axis=1)
+            df = df.apply(lambda n: self.__cntrl._prepare_pyg_node(n, v_col), axis=1)
             self.__insert_adb_docs(v_col, df.to_dict("records"), import_options)
 
         for edge_type in edge_types:
@@ -380,7 +380,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 except ValueError:
                     df[metagraph["y"]] = y.tolist()
 
-            df.apply(lambda edge: self.__cntrl._prepare_pyg_edge(edge, e_col), axis=1)
+            df = df.apply(lambda e: self.__cntrl._prepare_pyg_edge(e, e_col), axis=1)
             self.__insert_adb_docs(e_col, df.to_dict("records"), import_options)
 
         logger.info(f"Created ArangoDB '{name}' Graph")
