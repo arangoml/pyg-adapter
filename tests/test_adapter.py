@@ -180,14 +180,19 @@ def test_pyg_to_adb(
         ),
         (
             adbpyg_adapter,
-            "imdb-movies",
+            "imdb",
             {
                 "vertexCollections": {
                     "Movies": {
                         "x": {
                             "movie title": SequenceEncoder(),
-                            "Action": IdentityEncoder(),
-                        }
+                            "Action": IdentityEncoder(dtype=long),
+                            "Drama": IdentityEncoder(dtype=long),
+                            # etc....
+                        },
+                        "y": {
+                            "Comedy": IdentityEncoder(dtype=long),
+                        },
                     },
                     "Users": {
                         "x": {
@@ -270,7 +275,7 @@ def test_adb_collections_to_pyg(
     "adapter, name, pyg_g_old",
     [
         (adbpyg_adapter, "FakeHeterogeneous", get_fake_hetero_graph(avg_num_nodes=2)),
-        (adbpyg_adapter, "imdb-movies", None),
+        (adbpyg_adapter, "imdb", None),
     ],
 )
 def test_adb_graph_to_pyg(

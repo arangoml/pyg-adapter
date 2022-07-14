@@ -58,9 +58,9 @@ def pytest_configure(config: Any) -> None:
     arango_restore(con, "tests/data/adb/imdb_dump")
 
     # Create Fraud Detection Graph
-    db.delete_graph("imdb-movies", ignore_missing=True)
+    db.delete_graph("imdb", ignore_missing=True)
     db.create_graph(
-        "imdb-movies",
+        "imdb",
         edge_definitions=[
             {
                 "edge_collection": "Ratings",
