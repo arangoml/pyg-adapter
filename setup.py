@@ -18,12 +18,12 @@ setup(
     license="Apache Software License",
     install_requires=[
         "requests>=2.27.1",
+        "pandas>=1.3.5",
         "python-arango>=7.4.1",
         "torch>=1.12.0",
         "torch-sparse>=0.6.14",
         "torch-scatter>=2.0.9",
         "torch-geometric>=2.0.4",
-        "torch-cluster>=1.6.0",
         "tqdm>=4.64.0",
         "setuptools>=45",
     ],
@@ -38,7 +38,8 @@ setup(
             "coveralls>=3.3.1",
             "types-setuptools",
             "types-requests",
-            "networkx" # for testing purposes
+            "networkx",
+            "sentence-transformers",
         ],
     },
     classifiers=[
