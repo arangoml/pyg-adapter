@@ -13,7 +13,6 @@ from torch import Tensor, cat, tensor
 from torch_geometric.data import Data, HeteroData
 from torch_geometric.data.storage import EdgeStorage, NodeStorage
 from torch_geometric.typing import EdgeType
-from tqdm import tqdm
 
 from adbpyg_adapter.controller import ADBPyG_Controller
 
@@ -326,44 +325,34 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         adb_v_cols: List[str] = adb_graph.vertex_collections()
 
-        v_col_docs: List[Json] = []  # to-be-inserted ArangoDB vertices
+        # Define PyG data properties
+        x: Tensor
+        y: Tensor
+        edge_weight: Tensor
+        edge_attr: Tensor
+
         for v_col in adb_v_cols:
             node_data: NodeStorage = pyg_g if is_homogeneous else pyg_g[v_col]
             num_nodes: int = node_data.num_nodes
 
             logger.debug(f"Preparing {num_nodes} '{v_col}' nodes")
 
-            has_node_feature_matrix = "x" in node_data
-            has_node_target_label = num_nodes == len(node_data.get("y", []))
+            df = DataFrame([{"_key": str(i)} for i in range(num_nodes)])
 
-            for i in tqdm(
-                range(num_nodes),
-                desc=v_col,
-                colour="CYAN",
-                disable=logger.level != logging.INFO,
-            ):
-                logger.debug(f"N{i}: {i}")
+            if "x" in node_data:
+                x = node_data.x
+                df[metagraph["x"]] = x.tolist()
 
-                adb_vertex: Json = {"_key": str(i)}
+            if num_nodes == len(node_data.get("y", [])):
+                y = node_data.y
+                try:
+                    df[metagraph["y"]] = y.item()
+                except ValueError:
+                    df[metagraph["y"]] = y.tolist()
 
-                if has_node_feature_matrix:
-                    node_features: Tensor = node_data.x[i]
-                    adb_vertex[metagraph["x"]] = node_features.tolist()
+            df.apply(lambda node: self.__cntrl._prepare_pyg_node(node, v_col), axis=1)
+            self.__insert_adb_docs(v_col, df.to_dict("records"), import_options)
 
-                if has_node_target_label:
-                    node_label: Tensor = node_data.y[i]
-                    try:
-                        adb_vertex[metagraph["y"]] = node_label.item()
-                    except ValueError:
-                        adb_vertex[metagraph["y"]] = node_label.tolist()
-
-                self.__cntrl._prepare_pyg_edge(adb_vertex, v_col)
-                v_col_docs.append(adb_vertex)
-
-            self.__insert_adb_docs(v_col, v_col_docs, import_options)
-            v_col_docs.clear()
-
-        e_col_docs: List[Json] = []  # to-be-inserted ArangoDB edges
         for edge_type in edge_types:
             edge_data: EdgeStorage = pyg_g if is_homogeneous else pyg_g[edge_type]
             num_edges: int = edge_data.num_edges
@@ -372,46 +361,27 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
             from_col, e_col, to_col = edge_type
 
-            has_edge_weight_list = "edge_weight" in edge_data
-            has_edge_feature_matrix = "edge_attr" in edge_data
-            has_edge_target_label = num_edges == len(edge_data.get("y", []))
+            df = DataFrame(
+                zip(*(edge_data.edge_index.tolist())), columns=["_from", "_to"]
+            )
+            df["_from"] = from_col + "/" + df["_from"].astype(str)
+            df["_to"] = to_col + "/" + df["_to"].astype(str)
 
-            for i, (from_n, to_n) in enumerate(
-                tqdm(
-                    zip(*(edge_data.edge_index.tolist())),
-                    total=num_edges,
-                    desc=str(edge_type),
-                    colour="YELLOW",
-                    disable=logger.level != logging.INFO,
-                )
-            ):
-                logger.debug(f"E{i}: ({from_n}, {to_n})")
+            if "edge_weight" in edge_data:
+                df[metagraph["edge_weight"]] = edge_data.edge_weight
 
-                adb_edge: Json = {
-                    "_from": f"{from_col}/{str(from_n)}",
-                    "_to": f"{to_col}/{str(to_n)}",
-                }
+            if "edge_attr" in edge_data:
+                df[metagraph["edge_attr"]] = edge_data.edge_attr.tolist()
 
-                if has_edge_weight_list:
-                    edge_weights: Tensor = edge_data.edge_weight[i]
-                    adb_edge[metagraph["edge_weight"]] = edge_weights.item()
+            if num_edges == len(edge_data.get("y", [])):
+                y = edge_data.y
+                try:
+                    df[metagraph["y"]] = y.item()
+                except ValueError:
+                    df[metagraph["y"]] = y.tolist()
 
-                if has_edge_feature_matrix:
-                    edge_features: Tensor = edge_data.edge_attr[i]
-                    adb_edge[metagraph["edge_attr"]] = edge_features.tolist()
-
-                if has_edge_target_label:
-                    edge_label: Tensor = edge_data.y[i]
-                    try:
-                        adb_edge[metagraph["y"]] = edge_label.item()
-                    except ValueError:
-                        adb_edge[metagraph["y"]] = edge_label.tolist()
-
-                self.__cntrl._prepare_pyg_edge(adb_edge, edge_type)
-                e_col_docs.append(adb_edge)
-
-            self.__insert_adb_docs(e_col, e_col_docs, import_options)
-            e_col_docs.clear()
+            df.apply(lambda edge: self.__cntrl._prepare_pyg_edge(edge, e_col), axis=1)
+            self.__insert_adb_docs(e_col, df.to_dict("records"), import_options)
 
         logger.info(f"Created ArangoDB '{name}' Graph")
         return adb_graph
@@ -494,7 +464,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         elif type(meta_val) is dict:
             data = []
-            for attr, encoder in meta_val.items():  # type: ignore # (false positive)
+            for attr, encoder in meta_val.items():
                 if encoder is None:
                     data.append(tensor(df[attr].to_list()))
                 else:
