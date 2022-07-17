@@ -2,14 +2,14 @@ import logging
 import os
 import subprocess
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from arango import ArangoClient
 from arango.database import StandardDatabase
 from arango.http import DefaultHTTPClient
 from pandas import DataFrame
 from sentence_transformers import SentenceTransformer
-from torch import no_grad, tensor
+from torch import Tensor, no_grad, tensor
 from torch_geometric.data import Data, HeteroData
 from torch_geometric.datasets import Amazon, FakeDataset, FakeHeteroDataset, KarateClub
 
@@ -119,6 +119,19 @@ def get_social_graph() -> HeteroData:
     data[("user", "plays", "game")].edge_attr = tensor([[3], [5]])
 
     return data
+
+
+# For ArangoDB to PyG testing purposes
+def udf_process_x_dataframe_column(df: DataFrame) -> Tensor:
+    return tensor(df["x"].to_list())
+
+
+# For ArangoDB to PyG testing purposes
+def udf_process_key_dataframe_column(key: str) -> Callable[[DataFrame], Tensor]:
+    def f(df: DataFrame) -> Tensor:
+        return tensor(df[key].to_list())
+
+    return f
 
 
 class SequenceEncoder(object):

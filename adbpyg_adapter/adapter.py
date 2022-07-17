@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import logging
 from collections import defaultdict
+from types import FunctionType
 from typing import Any, DefaultDict, Dict, List, Set, Union
 
 from arango.cursor import Cursor
@@ -165,10 +166,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             adb_map.update({adb_id: pyg_id for pyg_id, adb_id in enumerate(df["_id"])})
 
             if "x" in meta:
-                node_data.x = self.__build_pyg_data(meta["x"], df)
+                node_data.x = self.__build_tensor(meta["x"], df)
 
             if "y" in meta:
-                node_data.y = self.__build_pyg_data(meta["y"], df)
+                node_data.y = self.__build_tensor(meta["y"], df)
 
         for e_col, meta in metagraph["edgeCollections"].items():
             logger.debug(f"Preparing '{e_col}' edges")
@@ -194,17 +195,17 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 edge_data.edge_index = tensor([from_nodes, to_nodes])
 
                 if "edge_weight" in meta:
-                    edge_data.edge_weight = self.__build_pyg_data(
+                    edge_data.edge_weight = self.__build_tensor(
                         meta["edge_weight"], df_by_edge_type
                     )
 
                 if "edge_attr" in meta:
-                    edge_data.edge_attr = self.__build_pyg_data(
+                    edge_data.edge_attr = self.__build_tensor(
                         meta["edge_attr"], df_by_edge_type
                     )
 
                 if "y" in meta:
-                    edge_data.y = self.__build_pyg_data(meta["y"], df_by_edge_type)
+                    edge_data.y = self.__build_tensor(meta["y"], df_by_edge_type)
 
         logger.info(f"Created PyG '{name}' Graph")
         return data
@@ -330,9 +331,11 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         y: Tensor
         edge_weight: Tensor
         edge_attr: Tensor
+        node_data: NodeStorage
+        edge_data: EdgeStorage
 
         for v_col in adb_v_cols:
-            node_data: NodeStorage = pyg_g if is_homogeneous else pyg_g[v_col]
+            node_data = pyg_g if is_homogeneous else pyg_g[v_col]
             num_nodes: int = node_data.num_nodes
 
             logger.debug(f"Preparing {num_nodes} '{v_col}' nodes")
@@ -354,7 +357,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             self.__insert_adb_docs(v_col, df.to_dict("records"), import_options)
 
         for edge_type in edge_types:
-            edge_data: EdgeStorage = pyg_g if is_homogeneous else pyg_g[edge_type]
+            edge_data = pyg_g if is_homogeneous else pyg_g[edge_type]
             num_edges: int = edge_data.num_edges
 
             logger.debug(f"Preparing {num_edges} '{edge_type}' nodes")
@@ -445,15 +448,19 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         return self.__db.aql.execute(aql, **query_options)
 
-    def __build_pyg_data(
-        self, meta_val: Union[str, Dict[str, PyGEncoder]], df: DataFrame
+    def __build_tensor(
+        self, meta_val: Union[str, Dict[str, PyGEncoder], FunctionType], df: DataFrame
     ) -> Tensor:
-        """Builds PyG-ready Tensors from Pandas Dataframes, based on
+        """Builds PyG-ready Tensors from a Pandas Dataframes, based on
         the nature of the user-defined metagraph.
 
-        :param meta_val: The value associated to PyG metagraph key.
-            e.g the value of `metagraph['vertexCollections']['users']['x']`
-        :type meta_val: str | dict
+        :param meta_val: The value mapped to the ArangoDB-PyG metagraph key.
+            e.g the value of `metagraph['vertexCollections']['users']['x']`.
+            The current accepted **meta_val** types are:
+            1) str: return the DataFrame's **meta_val** column values as a Tensor
+            2) dict: encode all `key` column values & concatenate as a Tensor
+            3) function: execute a user-defined function to return a Tensor
+        :type meta_val: str | dict | function
         :param df: The Pandas Dataframe representing ArangoDB data.
         :type df: pandas.DataFrame
         :return: A PyG-ready tensor
@@ -467,13 +474,25 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             for attr, encoder in meta_val.items():
                 if encoder is None:
                     data.append(tensor(df[attr].to_list()))
+                elif callable(encoder):
+                    data.append(encoder(df[attr]))
                 else:
-                    data.append(encoder(df[attr]))  # type: ignore
+                    msg = f"Invalid encoder for ArangoDB attribute '{attr}': {encoder}"
+                    raise ValueError(msg)
 
             return cat(data, dim=-1)
 
+        elif type(meta_val) is FunctionType:
+            # user defined function that returns a tensor
+            udf_tensor: Tensor = meta_val(df)
+            return udf_tensor
+
         else:
-            msg = f"Invalid **meta_val** argument type: {meta_val}"
+            msg = f"""
+                Invalid **meta_val** argument type: {meta_val}.
+                Expected Union[str, Dict[str, PyGEncoder], FunctionType],
+                got {type(meta_val)} instead.
+            """
             raise TypeError(msg)
 
     def __insert_adb_docs(
