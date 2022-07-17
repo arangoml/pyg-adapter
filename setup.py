@@ -24,7 +24,6 @@ setup(
         "torch-sparse>=0.6.14",
         "torch-scatter>=2.0.9",
         "torch-geometric>=2.0.4",
-        "tqdm>=4.64.0",
         "setuptools>=45",
     ],
     extras_require={
