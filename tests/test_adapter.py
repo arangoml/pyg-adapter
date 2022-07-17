@@ -2,7 +2,7 @@ from typing import Any, Dict, Optional, Set, Union
 
 import pytest
 from arango.graph import Graph as ArangoGraph
-from torch import Tensor, long
+from torch import Tensor, long, tensor
 from torch_geometric.data import Data, HeteroData
 from torch_geometric.data.storage import EdgeStorage, NodeStorage
 
@@ -18,6 +18,8 @@ from .conftest import (
     get_fake_homo_graph,
     get_karate_graph,
     get_social_graph,
+    udf_process_key_dataframe_column,
+    udf_process_x_dataframe_column,
 )
 
 
@@ -137,20 +139,20 @@ def test_pyg_to_adb(
         ),
         (
             adbpyg_adapter,
-            "FakeHomogoneous",
+            "Homogoneous",
             {
                 "vertexCollections": {
-                    "FakeHomogoneous_N": {"x": "x", "y": "y"},
+                    "Homogoneous_N": {"x": "x", "y": "y"},
                 },
                 "edgeCollections": {
-                    "FakeHomogoneous_E": {"edge_weight": "edge_weight"},
+                    "Homogoneous_E": {"edge_weight": "edge_weight"},
                 },
             },
             get_fake_homo_graph(avg_num_nodes=3, edge_dim=1),
         ),
         (
             adbpyg_adapter,
-            "FakeHeterogeneous",
+            "Heterogeneous",
             {
                 "vertexCollections": {
                     "v0": {"x": "x", "y": "y"},
@@ -165,7 +167,7 @@ def test_pyg_to_adb(
         ),
         (
             adbpyg_adapter,
-            "OverComplicatedFakeHeterogeneous",
+            "HeterogeneousOverComplicated",
             {
                 "vertexCollections": {
                     "v0": {"x": {"x": None}, "y": {"y": None}},
@@ -180,7 +182,25 @@ def test_pyg_to_adb(
         ),
         (
             adbpyg_adapter,
-            "imdb",
+            "HeterogeneousUDF",
+            {
+                "vertexCollections": {
+                    "v0": {
+                        "x": (lambda df: tensor(df["x"].to_list())),
+                        "y": (lambda df: tensor(df["y"].to_list())),
+                    },
+                    "v1": {"x": udf_process_x_dataframe_column},
+                    "v2": {"x": udf_process_key_dataframe_column("x")},
+                },
+                "edgeCollections": {
+                    "e0": {"edge_attr": (lambda df: tensor(df["edge_attr"].to_list()))},
+                },
+            },
+            get_fake_hetero_graph(avg_num_nodes=2, edge_dim=2),
+        ),
+        (
+            adbpyg_adapter,
+            "EncoderIMDB",
             {
                 "vertexCollections": {
                     "Movies": {
@@ -429,7 +449,7 @@ def assert_pyg_data(pyg_g: Union[Data, HeteroData], metagraph: ArangoMetagraph) 
     adb_map = dict()
 
     y_val: Any  # ignore this for now
-    for v_col, atribs in metagraph["vertexCollections"].items():
+    for v_col, meta in metagraph["vertexCollections"].items():
         node_data: NodeStorage = pyg_g if is_homogeneous else pyg_g[v_col]
         num_nodes = node_data.num_nodes
 
@@ -437,15 +457,15 @@ def assert_pyg_data(pyg_g: Union[Data, HeteroData], metagraph: ArangoMetagraph) 
         assert num_nodes == collection.count()
 
         # TODO: Remove str restriction to introduce Encoder verificiation
-        has_node_feature_matrix = type(atribs.get("x")) is str
-        has_node_target_label = type(atribs.get("y")) is str
+        has_node_feature_matrix = type(meta.get("x")) is str
+        has_node_target_label = type(meta.get("y")) is str
 
         for i, doc in enumerate(collection):
             adb_map[doc["_id"]] = i
 
             if has_node_feature_matrix:
                 x: Tensor = node_data.x[i]
-                assert [float(num) for num in doc[atribs["x"]]] == x.tolist()
+                assert [float(num) for num in doc[meta["x"]]] == x.tolist()
 
             if has_node_target_label:
                 y: Tensor = node_data.y[i]
@@ -455,17 +475,17 @@ def assert_pyg_data(pyg_g: Union[Data, HeteroData], metagraph: ArangoMetagraph) 
                 except ValueError:
                     y_val = y.tolist()
 
-                assert doc[atribs["y"]] == y_val
+                assert doc[meta["y"]] == y_val
 
-    for e_col, atribs in metagraph["edgeCollections"].items():
+    for e_col, meta in metagraph["edgeCollections"].items():
         collection = db.collection(e_col)
         collection_count = collection.count()
         assert collection_count == pyg_g.num_edges
 
         # TODO: Remove str restriction to introduce Encoder verificiation
-        has_edge_weight_list = type(atribs.get("edge_weight")) is str
-        has_edge_feature_matrix = type(atribs.get("edge_attr")) is str
-        has_edge_target_label = type(atribs.get("y")) is str
+        has_edge_weight_list = type(meta.get("edge_weight")) is str
+        has_edge_feature_matrix = type(meta.get("edge_attr")) is str
+        has_edge_target_label = type(meta.get("y")) is str
 
         for edge in collection:
             from_adb_col = str(edge["_from"]).split("/")[0]
@@ -485,11 +505,11 @@ def assert_pyg_data(pyg_g: Union[Data, HeteroData], metagraph: ArangoMetagraph) 
 
             if has_edge_weight_list:
                 assert "edge_weight" in edge_data
-                assert edge[atribs["edge_weight"]] == edge_data.edge_weight[i].item()
+                assert edge[meta["edge_weight"]] == edge_data.edge_weight[i].item()
 
             if has_edge_feature_matrix:
                 assert "edge_attr" in edge_data
-                assert edge[atribs["edge_attr"]] == edge_data.edge_attr[i].tolist()
+                assert edge[meta["edge_attr"]] == edge_data.edge_attr[i].tolist()
 
             if has_edge_target_label:
                 assert "y" in edge_data
@@ -500,4 +520,4 @@ def assert_pyg_data(pyg_g: Union[Data, HeteroData], metagraph: ArangoMetagraph) 
                 except ValueError:
                     y_val = y.tolist()
 
-                assert edge[atribs["y"]] == y_val
+                assert edge[meta["y"]] == y_val
