@@ -159,11 +159,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             df = DataFrame(self.__fetch_adb_docs(v_col, query_options))
             adb_map.update({adb_id: pyg_id for pyg_id, adb_id in enumerate(df["_id"])})
 
-            if "x" in meta:
-                node_data.x = self.__build_tensor(meta["x"], df)
-
-            if "y" in meta:
-                node_data.y = self.__build_tensor(meta["y"], df)
+            for key, val in meta.items():
+                node_data[key] = self.__build_tensor(val, df)
 
         for e_col, meta in metagraph["edgeCollections"].items():
             logger.debug(f"Preparing '{e_col}' edges")
@@ -188,18 +185,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
                 edge_data.edge_index = tensor([from_nodes, to_nodes])
 
-                if "edge_weight" in meta:
-                    edge_data.edge_weight = self.__build_tensor(
-                        meta["edge_weight"], df_by_edge_type
-                    )
-
-                if "edge_attr" in meta:
-                    edge_data.edge_attr = self.__build_tensor(
-                        meta["edge_attr"], df_by_edge_type
-                    )
-
-                if "y" in meta:
-                    edge_data.y = self.__build_tensor(meta["y"], df_by_edge_type)
+                for key, val in meta.items():
+                    edge_data[key] = self.__build_tensor(val, df_by_edge_type)
 
         logger.info(f"Created PyG '{name}' Graph")
         return data
@@ -321,10 +308,6 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         adb_v_cols: List[str] = adb_graph.vertex_collections()
 
         # Define PyG data properties
-        x: Tensor
-        y: Tensor
-        edge_weight: Tensor
-        edge_attr: Tensor
         node_data: NodeStorage
         edge_data: EdgeStorage
 
@@ -336,16 +319,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
             df = DataFrame([{"_key": str(i)} for i in range(num_nodes)])
 
-            if "x" in node_data:
-                x = node_data.x
-                df[pyg_key_map["x"]] = x.tolist()
-
-            if num_nodes == len(node_data.get("y", [])):
-                y = node_data.y
-                try:
-                    df[pyg_key_map["y"]] = y.item()
-                except ValueError:
-                    df[pyg_key_map["y"]] = y.tolist()
+            for pyg_key, adb_key in pyg_key_map.items():
+                t = node_data.get(pyg_key, None)
+                if type(t) is Tensor and len(t) == node_data.num_nodes:
+                    df[adb_key] = t.tolist()
 
             df = df.apply(lambda n: self.__cntrl._prepare_pyg_node(n, v_col), axis=1)
             self.__insert_adb_docs(v_col, df.to_dict("records"), import_options)
@@ -364,18 +341,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             df["_from"] = from_col + "/" + df["_from"].astype(str)
             df["_to"] = to_col + "/" + df["_to"].astype(str)
 
-            if "edge_weight" in edge_data:
-                df[pyg_key_map["edge_weight"]] = edge_data.edge_weight
-
-            if "edge_attr" in edge_data:
-                df[pyg_key_map["edge_attr"]] = edge_data.edge_attr.tolist()
-
-            if num_edges == len(edge_data.get("y", [])):
-                y = edge_data.y
-                try:
-                    df[pyg_key_map["y"]] = y.item()
-                except ValueError:
-                    df[pyg_key_map["y"]] = y.tolist()
+            for pyg_key, adb_key in pyg_key_map.items():
+                t = edge_data.get(pyg_key, None)
+                if type(t) is Tensor and len(t) == edge_data.num_edges:
+                    df[adb_key] = t.tolist()
 
             df = df.apply(lambda e: self.__cntrl._prepare_pyg_edge(e, e_col), axis=1)
             self.__insert_adb_docs(e_col, df.to_dict("records"), import_options)
