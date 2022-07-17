@@ -2,13 +2,13 @@
 # -*- coding: utf-8 -*-
 
 from abc import ABC
-from typing import Any, List, Set, Union
+from typing import Any, Dict, List, Set, Union
 
 from arango.graph import Graph as ArangoDBGraph
 from torch_geometric.data import Data, HeteroData
 from torch_geometric.typing import EdgeType
 
-from .typings import ArangoMetagraph, DEFAULT_PyG_METAGRAPH, Json, PyGMetagraph
+from .typings import DEFAULT_PYG_KEY_MAP, ArangoMetagraph, Json
 
 
 class Abstract_ADBPyG_Adapter(ABC):
@@ -32,7 +32,7 @@ class Abstract_ADBPyG_Adapter(ABC):
         self,
         name: str,
         pyg_g: Union[Data, HeteroData],
-        metagraph: PyGMetagraph = DEFAULT_PyG_METAGRAPH,
+        pyg_key_map: Dict[str, str] = DEFAULT_PYG_KEY_MAP,
         overwrite_graph: bool = False,
         **import_options: Any,
     ) -> ArangoDBGraph:

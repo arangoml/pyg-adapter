@@ -7,7 +7,7 @@ from torch_geometric.data import Data, HeteroData
 from torch_geometric.data.storage import EdgeStorage, NodeStorage
 
 from adbpyg_adapter import ADBPyG_Adapter
-from adbpyg_adapter.typings import ArangoMetagraph, DEFAULT_PyG_METAGRAPH, PyGMetagraph
+from adbpyg_adapter.typings import ArangoMetagraph, DEFAULT_PYG_KEY_MAP
 from adbpyg_adapter.utils import EnumEncoder, IdentityEncoder
 
 from .conftest import (
@@ -37,13 +37,13 @@ def test_validate_constructor() -> None:
 
 
 @pytest.mark.parametrize(
-    "adapter, name, pyg_g, metagraph, overwrite_graph, import_options",
+    "adapter, name, pyg_g, pyg_key_map, overwrite_graph, import_options",
     [
         (
             adbpyg_adapter,
             "Karate",
             get_karate_graph(),
-            DEFAULT_PyG_METAGRAPH,
+            DEFAULT_PYG_KEY_MAP,
             False,
             {},
         ),
@@ -51,7 +51,7 @@ def test_validate_constructor() -> None:
             adbpyg_adapter,
             "FakeHomoGraph_1",
             get_fake_homo_graph(avg_num_nodes=3),
-            DEFAULT_PyG_METAGRAPH,
+            DEFAULT_PYG_KEY_MAP,
             False,
             {},
         ),
@@ -59,7 +59,7 @@ def test_validate_constructor() -> None:
             adbpyg_adapter,
             "FakeHomoGraph_2",
             get_fake_homo_graph(avg_num_nodes=3, edge_dim=1),
-            DEFAULT_PyG_METAGRAPH,
+            DEFAULT_PYG_KEY_MAP,
             False,
             {},
         ),
@@ -67,7 +67,7 @@ def test_validate_constructor() -> None:
             adbpyg_adapter,
             "FakeHomoGraph_3",
             get_fake_homo_graph(avg_num_nodes=3, edge_dim=2),
-            DEFAULT_PyG_METAGRAPH,
+            DEFAULT_PYG_KEY_MAP,
             False,
             {},
         ),
@@ -75,7 +75,7 @@ def test_validate_constructor() -> None:
             adbpyg_adapter,
             "FakeHeteroGraph_1",
             get_fake_hetero_graph(avg_num_nodes=2),
-            DEFAULT_PyG_METAGRAPH,
+            DEFAULT_PYG_KEY_MAP,
             False,
             {},
         ),
@@ -83,7 +83,7 @@ def test_validate_constructor() -> None:
             adbpyg_adapter,
             "FakeHeteroGraph_2",
             get_fake_hetero_graph(avg_num_nodes=2, edge_dim=1),
-            DEFAULT_PyG_METAGRAPH,
+            DEFAULT_PYG_KEY_MAP,
             False,
             {},
         ),
@@ -91,7 +91,7 @@ def test_validate_constructor() -> None:
             adbpyg_adapter,
             "FakeHeteroGraph_3",
             get_fake_hetero_graph(avg_num_nodes=2, edge_dim=2),
-            DEFAULT_PyG_METAGRAPH,
+            DEFAULT_PYG_KEY_MAP,
             False,
             {},
         ),
@@ -99,7 +99,7 @@ def test_validate_constructor() -> None:
             adbpyg_adapter,
             "SocialGraph",
             get_social_graph(),
-            DEFAULT_PyG_METAGRAPH,
+            DEFAULT_PYG_KEY_MAP,
             False,
             {},
         ),
@@ -109,15 +109,15 @@ def test_pyg_to_adb(
     adapter: ADBPyG_Adapter,
     name: str,
     pyg_g: Union[Data, HeteroData],
-    metagraph: PyGMetagraph,
+    pyg_key_map: Dict[str, str],
     overwrite_graph: bool,
     import_options: Any,
 ) -> None:
     db.delete_graph(name, drop_collections=True, ignore_missing=True)
     adb_g = adapter.pyg_to_arangodb(
-        name, pyg_g, metagraph, overwrite_graph, **import_options
+        name, pyg_g, pyg_key_map, overwrite_graph, **import_options
     )
-    assert_arangodb_data(name, pyg_g, adb_g, metagraph)
+    assert_arangodb_data(name, pyg_g, adb_g, pyg_key_map)
     db.delete_graph(name, drop_collections=True)
 
 
@@ -334,7 +334,7 @@ def assert_arangodb_data(
     name: str,
     pyg_g: Union[Data, HeteroData],
     adb_g: ArangoGraph,
-    metagraph: PyGMetagraph,
+    pyg_key_map: Dict[str, str],
 ) -> None:
     is_homogeneous = type(pyg_g) is Data
     if is_homogeneous:
@@ -362,13 +362,13 @@ def assert_arangodb_data(
             assert vertex
 
             if has_node_feature_matrix:
-                assert metagraph["x"] in vertex
+                assert pyg_key_map["x"] in vertex
 
                 x = node_data.x[i]
-                assert x.tolist() == vertex[metagraph["x"]]
+                assert x.tolist() == vertex[pyg_key_map["x"]]
 
             if has_node_target_label:
-                assert metagraph["y"] in vertex
+                assert pyg_key_map["y"] in vertex
 
                 y = node_data.y[i]
                 y_val: Any
@@ -377,7 +377,7 @@ def assert_arangodb_data(
                 except ValueError:
                     y_val = y.tolist()
 
-                assert y_val == vertex[metagraph["y"]]
+                assert y_val == vertex[pyg_key_map["y"]]
 
         edge_weight: Tensor
         edge_attr: Tensor
@@ -407,19 +407,19 @@ def assert_arangodb_data(
                 assert edge
 
                 if has_edge_weight_list:
-                    assert metagraph["edge_weight"] in edge
+                    assert pyg_key_map["edge_weight"] in edge
 
                     edge_weight = edge_data.edge_weight[i]
-                    assert edge_weight.item() == edge[metagraph["edge_weight"]]
+                    assert edge_weight.item() == edge[pyg_key_map["edge_weight"]]
 
                 if has_edge_feature_matrix:
-                    assert metagraph["edge_attr"] in edge
+                    assert pyg_key_map["edge_attr"] in edge
 
                     edge_attr = edge_data.edge_attr[i]
-                    assert edge_attr.tolist() == edge[metagraph["edge_attr"]]
+                    assert edge_attr.tolist() == edge[pyg_key_map["edge_attr"]]
 
                 if has_edge_target_label:
-                    assert metagraph["y"] in edge
+                    assert pyg_key_map["y"] in edge
 
                     y = edge_data.y[i]
                     try:
@@ -427,7 +427,7 @@ def assert_arangodb_data(
                     except ValueError:
                         y_val = y.tolist()
 
-                    assert y_val == edge[metagraph["y"]]
+                    assert y_val == edge[pyg_key_map["y"]]
 
 
 def assert_pyg_data(pyg_g: Union[Data, HeteroData], metagraph: ArangoMetagraph) -> None:

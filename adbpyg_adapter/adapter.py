@@ -18,12 +18,7 @@ from torch_geometric.typing import EdgeType
 from adbpyg_adapter.controller import ADBPyG_Controller
 
 from .abc import Abstract_ADBPyG_Adapter
-from .typings import (
-    ArangoMetagraph,
-    DEFAULT_PYG_KEY_MAP,
-    Json,
-    PyGEncoder,
-)
+from .typings import DEFAULT_PYG_KEY_MAP, ArangoMetagraph, Json, PyGEncoder
 from .utils import logger
 
 
