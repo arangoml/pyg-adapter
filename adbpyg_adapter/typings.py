@@ -1,4 +1,4 @@
-__all__ = ["Json", "ArangoMetagraph", "PyGMetagraph", "DEFAULT_PyG_METAGRAPH"]
+__all__ = ["Json", "ArangoMetagraph", "DEFAULT_PYG_KEY_MAP"]
 
 from types import FunctionType
 from typing import Any, Dict, Union
@@ -8,9 +8,8 @@ PyGEncoder = object
 ArangoMetagraph = Dict[
     str, Dict[str, Dict[str, Union[str, Dict[str, PyGEncoder], FunctionType]]]
 ]
-PyGMetagraph = Dict[str, str]
 
-DEFAULT_PyG_METAGRAPH = {
+DEFAULT_PYG_KEY_MAP = {
     "x": "x",
     "y": "y",
     "edge_attr": "edge_attr",

@@ -20,10 +20,9 @@ from adbpyg_adapter.controller import ADBPyG_Controller
 from .abc import Abstract_ADBPyG_Adapter
 from .typings import (
     ArangoMetagraph,
-    DEFAULT_PyG_METAGRAPH,
+    DEFAULT_PYG_KEY_MAP,
     Json,
     PyGEncoder,
-    PyGMetagraph,
 )
 from .utils import logger
 
@@ -264,7 +263,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         self,
         name: str,
         pyg_g: Union[Data, HeteroData],
-        metagraph: PyGMetagraph = DEFAULT_PyG_METAGRAPH,
+        pyg_key_map: Dict[str, str] = DEFAULT_PYG_KEY_MAP,
         overwrite_graph: bool = False,
         **import_options: Any,
     ) -> ADBGraph:
@@ -274,12 +273,12 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :type name: str
         :param pyg_g: The existing PyG graph.
         :type pyg_g: Data | HeteroData
-        :param metagraph: An object mapping the PyG standard properties
+        :param pyg_key_map: An object mapping the PyG standard properties
             (i.e "x", "y", "edge_weight", "edge_attr") to user-defined
             strings, which will be used as the ArangoDB attribute names.
-            If not specified, defaults to the built-in metagraph.
-            See below for an example of **metagraph**.
-        :type metagraph: adbpyg_adapter.typings.PyGMetagraph
+            If not specified, defaults to the built-in pyg_key_map.
+            See below for an example of **pyg_key_map**.
+        :type pyg_key_map: Dict[str, str]
         :param overwrite_graph: Overwrites the graph if it already exists.
             Does not drop associated collections.
         :type overwrite_graph: bool
@@ -291,7 +290,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :rtype: arango.graph.Graph
 
 
-        1) Here is an example entry for parameter **metagraph**:
+        1) Here is an example entry for parameter **pyg_key_map**:
 
         .. code-block:: python
         {
@@ -344,14 +343,14 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
             if "x" in node_data:
                 x = node_data.x
-                df[metagraph["x"]] = x.tolist()
+                df[pyg_key_map["x"]] = x.tolist()
 
             if num_nodes == len(node_data.get("y", [])):
                 y = node_data.y
                 try:
-                    df[metagraph["y"]] = y.item()
+                    df[pyg_key_map["y"]] = y.item()
                 except ValueError:
-                    df[metagraph["y"]] = y.tolist()
+                    df[pyg_key_map["y"]] = y.tolist()
 
             df = df.apply(lambda n: self.__cntrl._prepare_pyg_node(n, v_col), axis=1)
             self.__insert_adb_docs(v_col, df.to_dict("records"), import_options)
@@ -371,17 +370,17 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             df["_to"] = to_col + "/" + df["_to"].astype(str)
 
             if "edge_weight" in edge_data:
-                df[metagraph["edge_weight"]] = edge_data.edge_weight
+                df[pyg_key_map["edge_weight"]] = edge_data.edge_weight
 
             if "edge_attr" in edge_data:
-                df[metagraph["edge_attr"]] = edge_data.edge_attr.tolist()
+                df[pyg_key_map["edge_attr"]] = edge_data.edge_attr.tolist()
 
             if num_edges == len(edge_data.get("y", [])):
                 y = edge_data.y
                 try:
-                    df[metagraph["y"]] = y.item()
+                    df[pyg_key_map["y"]] = y.item()
                 except ValueError:
-                    df[metagraph["y"]] = y.tolist()
+                    df[pyg_key_map["y"]] = y.tolist()
 
             df = df.apply(lambda e: self.__cntrl._prepare_pyg_edge(e, e_col), axis=1)
             self.__insert_adb_docs(e_col, df.to_dict("records"), import_options)
