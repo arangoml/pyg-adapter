@@ -7,7 +7,7 @@ from torch_geometric.data import Data, HeteroData
 from torch_geometric.data.storage import EdgeStorage, NodeStorage
 
 from adbpyg_adapter import ADBPyG_Adapter
-from adbpyg_adapter.typings import ArangoMetagraph, DEFAULT_PYG_KEY_MAP
+from adbpyg_adapter.typings import DEFAULT_PYG_KEY_MAP, ArangoMetagraph
 from adbpyg_adapter.utils import EnumEncoder, IdentityEncoder
 
 from .conftest import (
