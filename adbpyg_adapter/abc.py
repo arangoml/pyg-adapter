@@ -44,7 +44,7 @@ class Abstract_ADBPyG_Adapter(ABC):
     def __fetch_adb_docs(self) -> None:
         raise NotImplementedError  # pragma: no cover
 
-    def __build_pyg_data(self) -> None:
+    def __build_tensor(self) -> None:
         raise NotImplementedError  # pragma: no cover
 
     def __insert_adb_docs(self) -> None:
