@@ -13,7 +13,7 @@
 [![Downloads](https://img.shields.io/badge/dynamic/json?style=for-the-badge&color=282661&label=Downloads&query=total_downloads&url=https://api.pepy.tech/api/projects/adbpyg-adapter)](https://pepy.tech/project/adbpyg-adapter)
 
 
-<a href="https://www.arangodb.com/" rel="arangodb.com">![](./examples/assets/adb_logo.png)</a>
+<a href="https://www.arangodb.com/" rel="arangodb.com">![](https://raw.githubusercontent.com/arangoml/pyg-adapter/master/examples/assets/adb_logo.png)</a>
 <a href="https://www.pyg.org/" rel="pyg.org"><img src="https://raw.githubusercontent.com/pyg-team/pyg_sphinx_theme/master/pyg_sphinx_theme/static/img/pyg_logo_text.svg?sanitize=true" width=40% /></a>
 
 The ArangoDB-PyG Adapter exports Graphs from ArangoDB, the multi-model database for graph & beyond, into PyTorch Geometric (PyG), a PyTorch-based Graph Neural Network library, and vice-versa.
@@ -72,7 +72,8 @@ class Custom_ADBPyG_Controller(ADBPyG_Controller):
     def _prepare_pyg_node(self, pyg_node: Json, col: str) -> Json:
         """Optionally modify a PyG node object before it gets inserted into its designated ArangoDB collection."""
         # pyg_node["foo"] = "bar"
-        pyg_node["label_name"] = mapping.get(pyg_node["y"], "no mapping found!")
+        if "y" in pyg_node:
+            pyg_node["label_name"] = mapping.get(pyg_node["y"], "no mapping found!")
         return pyg_node
 
 adb_g = ADBPyG_Adapter(db, Custom_ADBPyG_Controller()).pyg_to_arangodb("FakeData", data)
