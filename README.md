@@ -100,7 +100,7 @@ metagraph = {
 }
 
 
-adb_g = adbpyg_adapter.pyg_to_arangodb("FakeData", data, pyg_to_adb_metagraph)
+adb_g = adbpyg_adapter.pyg_to_arangodb("FakeData", data, metagraph)
 
 # 1.3: PyG to ArangoDB with a Custom Controller  (more user-defined behavior)
 class Custom_ADBPyG_Controller(ADBPyG_Controller):
