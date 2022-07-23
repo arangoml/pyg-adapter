@@ -44,6 +44,7 @@ pip install git+https://github.com/arangoml/pyg-adapter.git
 
 ```py
 import torch
+import pandas
 from torch_geometric.datasets import FakeHeteroDataset
 
 from arango import ArangoClient  # Python-Arango driver
@@ -51,34 +52,80 @@ from arango import ArangoClient  # Python-Arango driver
 from adbpyg_adapter import ADBPyG_Adapter, ADBPyG_Controller
 from adbpyg_adapter.utils import IdentityEncoder, EnumEncoder
 
+# Load some fake PyG data for demo purposes
+data = FakeHeteroDataset(
+    num_node_types=2,
+    num_edge_types=3,
+    avg_num_nodes=20,
+    avg_num_channels=3,  # avg number of features per node
+    edge_dim=2,  # number of features per edge
+    num_classes=3,  # number of unique label values
+)[0]
+
 # Let's assume that the ArangoDB "IMDB" dataset is imported to this endpoint
 db = ArangoClient(hosts="http://localhost:8529").db("_system", username="root", password="")
 
 adbpyg_adapter = ADBPyG_Adapter(db)
-data = FakeHeteroDataset(edge_dim=2)[0]
 
 ############################### PyG to ArangoDB ###############################
 
 # 1.1: PyG to ArangoDB
 adb_g = adbpyg_adapter.pyg_to_arangodb("FakeData", data)
 
-# 1.2: PyG to ArangoDB with custom key map
-key_map = {"x": "features", "y": "label", "edge_attr": "features"}
-adb_g = adbpyg_adapter.pyg_to_arangodb("FakeData", data, key_map)
+# 1.2: PyG to ArangoDB with a (completely optional) metagraph for customized adapter behaviour
 
-# 1.3: PyG to ArangoDB with Custom Controller 
+def y_tensor_to_2_column_dataframe(pyg_tensor):
+    label_map = {0: "Kiwi", 1: "Blueberry", 2: "Avocado"}
+
+    df = pandas.DataFrame(columns=["label_num", "label_str"])
+    df["label_num"] = pyg_tensor.tolist()
+    df["label_str"] = df["label_num"].map(label_map)
+
+    return df
+
+
+pyg_to_adb_metagraph = {
+    "nodeTypes": {
+        "v0": {
+            "x": "features",  # 1) you can specify a string value for attribute renaming
+            "y": y_tensor_to_2_column_dataframe,  # 2) you can specify a function for user-defined handling, as long as function returns a Pandas DataFrame (see function below)
+        },
+    },
+    "edgeTypes": {
+        ("v0", "e0", "v0"): {
+            # 3) you can specify a list of strings for tensor dissasembly (if you know the number of node/edge features in advance)
+            "edge_attr": [ "a", "b"]  
+        },
+    },
+}
+
+
+adb_g = adbpyg_adapter.pyg_to_arangodb("FakeData", data, pyg_to_adb_metagraph)
+
+# 1.3: PyG to ArangoDB with a Custom Controller  (more user-defined behavior)
 class Custom_ADBPyG_Controller(ADBPyG_Controller):
-    mapping = { 0: "Mango", 1: "Orange", 2: "Banana", 3: "Avocado" }
-    def _prepare_pyg_node(self, pyg_node: Json, col: str) -> Json:
-        """Optionally modify a PyG node object before it gets inserted into its designated ArangoDB collection."""
-        # pyg_node["foo"] = "bar"
-        if "y" in pyg_node:
-            pyg_node["label_name"] = mapping.get(pyg_node["y"], "no mapping found!")
+    def _prepare_pyg_node(self, pyg_node: dict, col: str) -> dict:
+        """Optionally modify a PyG node object before it gets inserted into its designated ArangoDB collection.
+
+        :param pyg_node: The PyG node object to (optionally) modify.
+        :param col: The ArangoDB collection the PyG node belongs to.
+        :return: The PyG Node object
+        """
+        pyg_node["foo"] = "bar"
         return pyg_node
+
+    # def _prepare_pyg_edge(self, pyg_edge: Json, edge_type: tuple) -> dict:
+    # ...
+    # return pyg_edge
+
 
 adb_g = ADBPyG_Adapter(db, Custom_ADBPyG_Controller()).pyg_to_arangodb("FakeData", data)
 
 ############################### ArangoDB to PyG ###############################
+
+# Start from scratch!
+db.delete_graph("FakeData", drop_collections=True, ignore_missing=True)
+adbpyg_adapter.pyg_to_arangodb("FakeData", data)
 
 # 2.1: ArangoDB to PyG via Graph name (does not transfer attributes)
 pyg_g = adbpyg_adapter.arangodb_graph_to_pyg("FakeData")
@@ -89,23 +136,24 @@ pyg_g = adbpyg_adapter.arangodb_collections_to_pyg("FakeData", v_cols={"v0", "v1
 # 2.3: ArangoDB to PyG via Metagraph v1 (transfer attributes "as is", meaning they are already formatted to PyG data standards)
 metagraph_v1 = {
     "vertexCollections": {
-        "v0": {"x": "v0_features", "y": "label"},
-        "v1": {"x": "v1_features"}, # e.g: map the "x" PyG data property to the "v1_features" attribute of all "v1" documents
-        "v2": {"x": "v2_features"},
+        # we instruct the adapter to create the "x" and "y" tensor data from the "x" and "y" ArangoDB attributes
+        "v0": { "x": "x", "y": "y"},  
+        "v1": {"x": "x"},
+        "v2": {"x": "x"},
     },
     "edgeCollections": {
-        "e0": {"edge_attr": "e0_features"},
+        "e0": {"edge_attr": "edge_attr"},
     },
 }
 pyg_g = adbpyg_adapter.arangodb_to_pyg("FakeData", metagraph_v1)
 
-# 2.4: ArangoDB to PyG via Metagraph v3 (transfer attributes via user-defined encoders)
+# 2.4: ArangoDB to PyG via Metagraph v2 (transfer attributes via user-defined encoders)
 metagraph_v2 = {
     "vertexCollections": {
         "Movies": {
-            "x": { # Build a feature matrix from the "Action" & "Drama" document attributes
+            "x": {  # Build a feature matrix from the "Action" & "Drama" document attributes
                 "Action": IdentityEncoder(dtype=long),
-                "Drama": IdentityEncoder(dtype=long)
+                "Drama": IdentityEncoder(dtype=long),
             },
             "y": {"Comedy": IdentityEncoder(dtype=long)},
         },
@@ -132,6 +180,7 @@ def udf_v0_x(v0_df):
     # v0_df["x"] = ...
     return torch.tensor(v0_df["x"].to_list())
 
+
 def udf_v1_x(v1_df):
     # process v1_df here to return v1 "x" feature matrix
     # v1_df["x"] = ...
@@ -141,8 +190,8 @@ def udf_v1_x(v1_df):
 metagraph_v3 = {
     "vertexCollections": {
         "v0": {
-            "x": udf_v0_x, # supports named functions
-            "y": (lambda df: tensor(df["y"].to_list())), # also supports lambda functions
+            "x": udf_v0_x,  # supports named functions
+            "y": lambda df: tensor(df["y"].to_list()),  # also supports lambda functions
         },
         "v1": {"x": udf_v1_x},
         "v2": {"x": (lambda df: tensor(df["x"].to_list()))},
