@@ -88,7 +88,7 @@ pyg_to_adb_metagraph = {
     "nodeTypes": {
         "v0": {
             "x": "features",  # 1) you can specify a string value for attribute renaming
-            "y": y_tensor_to_2_column_dataframe,  # 2) you can specify a function for user-defined handling, as long as function returns a Pandas DataFrame (see function below)
+            "y": y_tensor_to_2_column_dataframe,  # 2) you can specify a function for user-defined handling, as long as function returns a Pandas DataFrame
         },
     },
     "edgeTypes": {
