@@ -184,14 +184,14 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         data = Data() if is_homogeneous else HeteroData()
 
         for v_col, meta in metagraph["vertexCollections"].items():
-            node_data: NodeStorage = data if is_homogeneous else data[v_col]
             logger.debug(f"Preparing '{v_col}' vertices")
 
             df = DataFrame(self.__fetch_adb_docs(v_col, query_options))
             adb_map.update({adb_id: pyg_id for pyg_id, adb_id in enumerate(df["_id"])})
 
-            for key, val in meta.items():
-                node_data[key] = self.__build_tensor_from_dataframe(val, df)
+            node_data: NodeStorage = data if is_homogeneous else data[v_col]
+            for k, v in meta.items():
+                node_data[k] = self.__build_tensor_from_dataframe(df, v)
 
         for e_col, meta in metagraph["edgeCollections"].items():
             logger.debug(f"Preparing '{e_col}' edges")
@@ -204,21 +204,17 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 df[["from_col", "to_col"]].value_counts().items()
             ):
                 edge_type = (from_col, e_col, to_col)
-                edge_data: EdgeStorage = data if is_homogeneous else data[edge_type]
                 logger.debug(f"Preparing {count} '{edge_type}' edges")
 
-                # Get the dataframe corresponding to the current edge type
-                et_df: DataFrame = df[
-                    (df["from_col"] == from_col) & (df["to_col"] == to_col)
-                ]
-
+                # Get the edge data corresponding to the current edge type
+                et_df = df[(df["from_col"] == from_col) & (df["to_col"] == to_col)]
                 from_nodes = [adb_map[_id] for _id in et_df["_from"]]
                 to_nodes = [adb_map[_id] for _id in et_df["_to"]]
 
+                edge_data: EdgeStorage = data if is_homogeneous else data[edge_type]
                 edge_data.edge_index = tensor([from_nodes, to_nodes])
-
-                for key, val in meta.items():
-                    edge_data[key] = self.__build_tensor_from_dataframe(val, et_df)
+                for k, v in meta.items():
+                    edge_data[k] = self.__build_tensor_from_dataframe(et_df, v)
 
         logger.info(f"Created PyG '{name}' Graph")
         return data
@@ -334,21 +330,23 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         logger.debug(f"--pyg_to_arangodb('{name}')--")
 
         is_homogeneous = type(pyg_g) is Data
-        if is_homogeneous:
-            edge_types = [(name + "_N", name + "_E", name + "_N")]
-        else:
-            edge_types = pyg_g.edge_types
 
+        edge_types = (
+            [(name + "_N", name + "_E", name + "_N")]
+            if is_homogeneous
+            else pyg_g.edge_types
+        )
         edge_definitions = self.etypes_to_edefinitions(edge_types)
 
         if overwrite_graph:
             logger.debug("Overwrite graph flag is True. Deleting old graph.")
             self.__db.delete_graph(name, ignore_missing=True)
 
-        if self.__db.has_graph(name):
-            adb_graph = self.__db.graph(name)
-        else:
-            adb_graph = self.__db.create_graph(name, edge_definitions)
+        adb_graph = (
+            self.__db.graph(name)
+            if self.__db.has_graph(name)
+            else self.__db.create_graph(name, edge_definitions)
+        )
 
         # Define PyG data properties
         node_data: NodeStorage
@@ -358,15 +356,12 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         n_meta = metagraph.get("nodeTypes", {})
         for v_col in adb_graph.vertex_collections():
             node_data = pyg_g if is_homogeneous else pyg_g[v_col]
-            num_nodes: int = node_data.num_nodes
-
-            logger.debug(f"Preparing {num_nodes} '{v_col}' nodes")
-            df = DataFrame([{"_key": str(i)} for i in range(num_nodes)])
+            df = DataFrame([{"_key": str(i)} for i in range(node_data.num_nodes)])
 
             meta = n_meta.get(v_col, {})
-            for k, t in node_data.items():
-                if type(t) is Tensor and len(t) == node_data.num_nodes:
-                    df = df.join(self.__build_dataframe_from_tensor(meta.get(k, k), t))
+            for k, v in node_data.items():
+                if type(v) is Tensor and len(v) == node_data.num_nodes:
+                    df = df.join(self.__build_dataframe_from_tensor(v, meta.get(k, k)))
 
             if type(self.__cntrl) is not ADBPyG_Controller:
                 f = lambda n: self.__cntrl._prepare_pyg_node(n, v_col)
@@ -377,19 +372,17 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         e_meta = metagraph.get("edgeTypes", {})
         for edge_type in edge_types:
             edge_data = pyg_g if is_homogeneous else pyg_g[edge_type]
-            num_edges: int = edge_data.num_edges
             from_col, e_col, to_col = edge_type
 
-            logger.debug(f"Preparing {num_edges} '{edge_type}' nodes")
             columns = ["_from", "_to"]
             df = DataFrame(zip(*(edge_data.edge_index.tolist())), columns=columns)
             df["_from"] = from_col + "/" + df["_from"].astype(str)
             df["_to"] = to_col + "/" + df["_to"].astype(str)
 
             meta = e_meta.get(edge_type, {})
-            for k, t in edge_data.items():
-                if type(t) is Tensor and len(t) == edge_data.num_edges:
-                    df = df.join(self.__build_dataframe_from_tensor(meta.get(k, k), t))
+            for k, v in edge_data.items():
+                if type(v) is Tensor and len(v) == edge_data.num_edges:
+                    df = df.join(self.__build_dataframe_from_tensor(v, meta.get(k, k)))
 
             if type(self.__cntrl) is not ADBPyG_Controller:
                 f = lambda e: self.__cntrl._prepare_pyg_edge(e, e_col)
@@ -460,21 +453,22 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         return self.__db.aql.execute(aql, **query_options)
 
     def __build_tensor_from_dataframe(
-        self, meta_val: Union[str, Dict[str, PyGEncoder], FunctionType], df: DataFrame
+        self, df: DataFrame, meta_val: Union[str, Dict[str, PyGEncoder], FunctionType]
     ) -> Tensor:
         """Constructs a PyG-ready Tensor from a Pandas Dataframe, based on
         the nature of the user-defined metagraph.
 
-        :param meta_val: The value mapped to the ArangoDB-PyG metagraph key.
+        :param df: The Pandas Dataframe representing ArangoDB data.
+        :type df: pandas.DataFrame
+        :param meta_val: The value mapped to the ArangoDB-PyG metagraph key to
+            help convert **df** into a PyG-ready Tensor.
             e.g the value of `metagraph['vertexCollections']['users']['x']`.
             The current accepted **meta_val** types are:
             1) str: return the DataFrame's **meta_val** column values as a Tensor
             2) dict: encode all `key` column values & concatenate as a Tensor
             3) function: execute a user-defined function to return a Tensor
         :type meta_val: str | dict | function
-        :param df: The Pandas Dataframe representing ArangoDB data.
-        :type df: pandas.DataFrame
-        :return: A PyG-ready tensor
+        :return: A PyG-ready tensor equivalent to the dataframe
         :rtype: torch.Tensor
         """
         if type(meta_val) is str:
@@ -507,32 +501,34 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             raise TypeError(msg)
 
     def __build_dataframe_from_tensor(
-        self, meta_val: Union[str, List[str], FunctionType], t: Tensor
+        self, tensor: Tensor, meta_val: Union[str, List[str], FunctionType]
     ) -> DataFrame:
-        """Builds a Pandas-ready DataFrame from PyG Tensor, based on
+        """Builds a Pandas DataFrame from PyG Tensor, based on
         the nature of the user-defined metagraph.
 
-        :param meta_val: The value mapped to the PyG-ArangoDB metagraph key.
+        :param tensor: The Tensor representing PyG data.
+        :type tensor: torch.Tensor
+        :param meta_val: The value mapped to the PyG-ArangoDB metagraph key to
+            help convert **tensor** into a Pandas Dataframe.
             e.g the value of `metagraph['nodeTypes']['users']['x']`.
             The current accepted **meta_val** types are:
             1) str: return a 1-column DataFrame equivalent to the Tensor
             2) list[str]: return an N-column DataFrame equivalent to the Tensor
             3) func: return a DataFrame based on the Tensor via a user-defined function
         :type meta_val: str | dict | function
-        :param t: The Tensor representing PyG data.
-        :type df: torch.Tensor
-        :return: A Pandas-ready DataFrame
+
+        :return: A Pandas DataFrame equivalent to the Tensor
         :rtype: pandas.DataFrame
         """
         if type(meta_val) in [str, list]:
             columns = [meta_val] if type(meta_val) is str else meta_val
             df = DataFrame(columns=columns)
-            df[meta_val] = t.tolist()
+            df[meta_val] = tensor.tolist()
             return df
 
         elif type(meta_val) is FunctionType:
             # **meta_val** is a user-defined function that returns a dataframe
-            user_defined_dataframe: DataFrame = meta_val(t)
+            user_defined_dataframe: DataFrame = meta_val(tensor)
             return user_defined_dataframe
 
         else:
