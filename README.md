@@ -84,7 +84,7 @@ def y_tensor_to_2_column_dataframe(pyg_tensor):
     return df
 
 
-pyg_to_adb_metagraph = {
+metagraph = {
     "nodeTypes": {
         "v0": {
             "x": "features",  # 1) you can specify a string value for attribute renaming
