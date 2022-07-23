@@ -2,13 +2,13 @@
 # -*- coding: utf-8 -*-
 
 from abc import ABC
-from typing import Any, Dict, List, Set, Union
+from typing import Any, List, Set, Union
 
 from arango.graph import Graph as ArangoDBGraph
 from torch_geometric.data import Data, HeteroData
 from torch_geometric.typing import EdgeType
 
-from .typings import DEFAULT_PYG_KEY_MAP, ArangoMetagraph, Json
+from .typings import ADBMetagraph, Json, PyGMetagraph
 
 
 class Abstract_ADBPyG_Adapter(ABC):
@@ -16,7 +16,7 @@ class Abstract_ADBPyG_Adapter(ABC):
         raise NotImplementedError  # pragma: no cover
 
     def arangodb_to_pyg(
-        self, name: str, metagraph: ArangoMetagraph, **query_options: Any
+        self, name: str, metagraph: ADBMetagraph, **query_options: Any
     ) -> HeteroData:
         raise NotImplementedError  # pragma: no cover
 
@@ -32,7 +32,7 @@ class Abstract_ADBPyG_Adapter(ABC):
         self,
         name: str,
         pyg_g: Union[Data, HeteroData],
-        pyg_key_map: Dict[str, str] = DEFAULT_PYG_KEY_MAP,
+        metagraph: PyGMetagraph = {},
         overwrite_graph: bool = False,
         **import_options: Any,
     ) -> ArangoDBGraph:
@@ -44,7 +44,10 @@ class Abstract_ADBPyG_Adapter(ABC):
     def __fetch_adb_docs(self) -> None:
         raise NotImplementedError  # pragma: no cover
 
-    def __build_tensor(self) -> None:
+    def __build_tensor_from_dataframe(self) -> None:
+        raise NotImplementedError  # pragma: no cover
+
+    def __build_dataframe_from_tensor(self) -> None:
         raise NotImplementedError  # pragma: no cover
 
     def __insert_adb_docs(self) -> None:

@@ -16,6 +16,7 @@ from torch_geometric.datasets import Amazon, FakeDataset, FakeHeteroDataset, Kar
 from adbpyg_adapter import ADBPyG_Adapter
 from adbpyg_adapter.typings import Json
 
+con: Json
 db: StandardDatabase
 adbpyg_adapter: ADBPyG_Adapter
 PROJECT_DIR = Path(__file__).parent.parent
@@ -29,6 +30,7 @@ def pytest_addoption(parser: Any) -> None:
 
 
 def pytest_configure(config: Any) -> None:
+    global con
     con = {
         "url": config.getoption("url"),
         "username": config.getoption("username"),
@@ -53,19 +55,6 @@ def pytest_configure(config: Any) -> None:
 
     global adbpyg_adapter
     adbpyg_adapter = ADBPyG_Adapter(db, logging_lvl=logging.DEBUG)
-
-    if db.has_graph("imdb") is False:
-        arango_restore(con, "examples/data/imdb_dump")
-        db.create_graph(
-            "imdb",
-            edge_definitions=[
-                {
-                    "edge_collection": "Ratings",
-                    "from_vertex_collections": ["Users"],
-                    "to_vertex_collections": ["Movies"],
-                },
-            ],
-        )
 
 
 def arango_restore(con: Json, path_to_data: str) -> None:
@@ -97,6 +86,20 @@ def get_fake_hetero_graph(**params: Any) -> HeteroData:
     return FakeHeteroDataset(**params)[0]
 
 
+def udf_v2_x_tensor_to_df(t: Tensor) -> DataFrame:
+    df = DataFrame(columns=["x"])
+    df["x"] = t.tolist()
+    # do more things with df["v2_features"] here ...
+    return df
+
+
+def udf_users_x_tensor_to_df(t: Tensor) -> DataFrame:
+    df = DataFrame(columns=["age", "gender"])
+    df[["age", "gender"]] = t.tolist()
+    df["gender"] = df["gender"].map({0: "Male", 1: "Female"})
+    return df
+
+
 # Arguably too large for testing purposes
 def get_amazon_photos_graph() -> Data:
     path = f"{PROJECT_DIR}/tests/data/pyg"
@@ -112,19 +115,19 @@ def get_social_graph() -> HeteroData:
 
     data["user"].num_nodes = 4
     data["game"].num_nodes = 3
-    data["user"].x = tensor([[21], [16], [38], [64]])
+    data["user"].x = tensor([[21, 0], [16, 1], [38, 0], [64, 0]])
     data[("user", "plays", "game")].edge_attr = tensor([[3], [5]])
 
     return data
 
 
 # For ArangoDB to PyG testing purposes
-def udf_process_x_dataframe_column(df: DataFrame) -> Tensor:
+def udf_x_df_to_tensor(df: DataFrame) -> Tensor:
     return tensor(df["x"].to_list())
 
 
 # For ArangoDB to PyG testing purposes
-def udf_process_key_dataframe_column(key: str) -> Callable[[DataFrame], Tensor]:
+def udf_key_df_to_tensor(key: str) -> Callable[[DataFrame], Tensor]:
     def f(df: DataFrame) -> Tensor:
         return tensor(df[key].to_list())
 
@@ -139,11 +142,12 @@ class SequenceEncoder(object):
         self.model = SentenceTransformer(model_name, device=device)
 
     @no_grad()
-    def __call__(self, df: DataFrame) -> Any:
+    def __call__(self, df: DataFrame) -> Tensor:
         x = self.model.encode(
             df.values,
             show_progress_bar=True,
             convert_to_tensor=True,
             device=self.device,
         )
-        return x.cpu()
+        t: Tensor = x.cpu()
+        return t

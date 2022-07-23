@@ -1,17 +1,12 @@
-__all__ = ["Json", "ArangoMetagraph", "DEFAULT_PYG_KEY_MAP"]
+__all__ = ["Json", "ADBMetagraph", "PyGMetagraph"]
 
 from types import FunctionType
-from typing import Any, Dict, Union
+from typing import Any, Dict, Tuple, Union
 
 Json = Dict[str, Any]
 PyGEncoder = object
-ArangoMetagraph = Dict[
+ADBMetagraph = Dict[
     str, Dict[str, Dict[str, Union[str, Dict[str, PyGEncoder], FunctionType]]]
 ]
 
-DEFAULT_PYG_KEY_MAP = {
-    "x": "x",
-    "y": "y",
-    "edge_attr": "edge_attr",
-    "edge_weight": "edge_weight",
-}
+PyGMetagraph = Dict[str, Dict[Union[str, Tuple[str, str, str]], Any]]
