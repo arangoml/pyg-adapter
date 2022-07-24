@@ -33,6 +33,7 @@ class Abstract_ADBPyG_Adapter(ABC):
         name: str,
         pyg_g: Union[Data, HeteroData],
         metagraph: PyGMetagraph = {},
+        explicit_metagraph: bool = False,
         overwrite_graph: bool = False,
         **import_options: Any,
     ) -> ArangoDBGraph:

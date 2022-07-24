@@ -45,11 +45,11 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
     ):
         self.set_logging(logging_lvl)
 
-        if issubclass(type(db), Database) is False:
+        if not issubclass(type(db), Database):
             msg = "**db** parameter must inherit from arango.database.Database"
             raise TypeError(msg)
 
-        if issubclass(type(controller), ADBPyG_Controller) is False:
+        if not issubclass(type(controller), ADBPyG_Controller):
             msg = "**controller** parameter must inherit from ADBPyG_Controller"
             raise TypeError(msg)
 
@@ -274,6 +274,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         name: str,
         pyg_g: Union[Data, HeteroData],
         metagraph: PyGMetagraph = {},
+        explicit_metagraph: bool = False,
         overwrite_graph: bool = False,
         **import_options: Any,
     ) -> ADBGraph:
@@ -288,6 +289,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             functions. NOTE: Unlike the metagraph for ArangoDB to PyG, this
             one is optional. See below for an example of **metagraph**.
         :type metagraph: adbpyg_adapter.typings.PyGMetagraph
+        :param explicit_metagraph: Whether to take the metagraph at face value or not.
+            If True, node & edge types omitted from the metagraph will NOT be
+            brought over into ArangoDB. Defaults to False.
+        :type explicit_metagraph: bool
         :param overwrite_graph: Overwrites the graph if it already exists.
             Does not drop associated collections.
         :type overwrite_graph: bool
@@ -331,61 +336,77 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         is_homogeneous = type(pyg_g) is Data
 
-        edge_types = (
-            [(name + "_N", name + "_E", name + "_N")]
-            if is_homogeneous
-            else pyg_g.edge_types
-        )
+        node_types: List[str]
+        edge_types: List[EdgeType]
+        if explicit_metagraph:
+            node_types = metagraph.get("nodeTypes", {}).keys()  # type: ignore
+            edge_types = metagraph.get("edgeTypes", {}).keys()  # type: ignore
+
+            if not edge_types:
+                for n_type in node_types:
+                    if not self.__db.has_collection(n_type):
+                        self.__db.create_collection(n_type)
+
+        elif is_homogeneous:
+            n_type = name + "_N"
+            node_types = [n_type]
+            edge_types = [(n_type, name + "_E", n_type)]
+
+        else:
+            node_types = pyg_g.node_types
+            edge_types = pyg_g.edge_types
+
         edge_definitions = self.etypes_to_edefinitions(edge_types)
 
         if overwrite_graph:
             logger.debug("Overwrite graph flag is True. Deleting old graph.")
             self.__db.delete_graph(name, ignore_missing=True)
 
-        adb_graph = (
-            self.__db.graph(name)
-            if self.__db.has_graph(name)
-            else self.__db.create_graph(name, edge_definitions)
-        )
+        adb_graph: ADBGraph
+        if not edge_definitions:
+            adb_graph = None
+        elif self.__db.has_graph(name):
+            adb_graph = self.__db.graph(name)
+        else:
+            adb_graph = self.__db.create_graph(name, edge_definitions)
 
         # Define PyG data properties
         node_data: NodeStorage
         edge_data: EdgeStorage
 
-        v_col: str
         n_meta = metagraph.get("nodeTypes", {})
-        for v_col in adb_graph.vertex_collections():
-            node_data = pyg_g if is_homogeneous else pyg_g[v_col]
+        for n_type in node_types:
+            node_data = pyg_g if is_homogeneous else pyg_g[n_type]
             df = DataFrame([{"_key": str(i)} for i in range(node_data.num_nodes)])
 
-            meta = n_meta.get(v_col, {})
+            meta = n_meta.get(n_type, {})
             for k, v in node_data.items():
                 if type(v) is Tensor and len(v) == node_data.num_nodes:
                     df = df.join(self.__build_dataframe_from_tensor(v, meta.get(k, k)))
 
             if type(self.__cntrl) is not ADBPyG_Controller:
-                f = lambda n: self.__cntrl._prepare_pyg_node(n, v_col)
+                f = lambda n: self.__cntrl._prepare_pyg_node(n, n_type)
                 df = df.apply(f, axis=1)
 
-            self.__insert_adb_docs(v_col, df.to_dict("records"), import_options)
+            self.__insert_adb_docs(n_type, df.to_dict("records"), import_options)
 
         e_meta = metagraph.get("edgeTypes", {})
-        for edge_type in edge_types:
-            edge_data = pyg_g if is_homogeneous else pyg_g[edge_type]
-            from_col, e_col, to_col = edge_type
+        for e_type in edge_types:
+            edge_data = pyg_g if is_homogeneous else pyg_g[e_type]
+            from_col, e_col, to_col = e_type
 
             columns = ["_from", "_to"]
             df = DataFrame(zip(*(edge_data.edge_index.tolist())), columns=columns)
             df["_from"] = from_col + "/" + df["_from"].astype(str)
             df["_to"] = to_col + "/" + df["_to"].astype(str)
 
-            meta = e_meta.get(edge_type, {})
+            meta = e_meta.get(e_type, {})
             for k, v in edge_data.items():
                 if type(v) is Tensor and len(v) == edge_data.num_edges:
                     df = df.join(self.__build_dataframe_from_tensor(v, meta.get(k, k)))
 
             if type(self.__cntrl) is not ADBPyG_Controller:
-                f = lambda e: self.__cntrl._prepare_pyg_edge(e, e_col)
+                f = lambda e: self.__cntrl._prepare_pyg_edge(e, e_type)
                 df = df.apply(f, axis=1)
 
             self.__insert_adb_docs(e_col, df.to_dict("records"), import_options)
@@ -413,6 +434,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             }
         ]
         """
+
+        if not edge_types:
+            return []
 
         edge_type_map: DefaultDict[str, DefaultDict[str, Set[str]]]
         edge_type_map = defaultdict(lambda: defaultdict(set))

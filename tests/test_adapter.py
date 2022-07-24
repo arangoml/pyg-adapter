@@ -1,10 +1,11 @@
-from typing import Any, Dict, Optional, Set, Union
+from typing import Any, Dict, List, Optional, Set, Union
 
 import pytest
 from arango.graph import Graph as ArangoGraph
 from torch import Tensor, long, tensor
 from torch_geometric.data import Data, HeteroData
 from torch_geometric.data.storage import EdgeStorage, NodeStorage
+from torch_geometric.typing import EdgeType
 
 from adbpyg_adapter import ADBPyG_Adapter
 from adbpyg_adapter.typings import ADBMetagraph, PyGMetagraph
@@ -40,21 +41,33 @@ def test_validate_constructor() -> None:
 
 
 @pytest.mark.parametrize(
-    "adapter, name, pyg_g, metagraph, overwrite_graph, import_options",
+    "adapter, name, pyg_g, metagraph, \
+        explicit_metagraph, overwrite_graph, import_options",
     [
         (
             adbpyg_adapter,
-            "Karate",
+            "Karate_1",
             get_karate_graph(),
-            {"nodeTypes": {"Karate_N": {"x": "node_features"}}},
+            {"nodeTypes": {"Karate_1_N": {"x": "node_features"}}},
+            False,
             False,
             {},
+        ),
+        (
+            adbpyg_adapter,
+            "Karate_2",
+            get_karate_graph(),
+            {"nodeTypes": {"Karate_2_N": {"x": "node_features"}}},
+            True,
+            False,
+            {"overwrite": True},
         ),
         (
             adbpyg_adapter,
             "FakeHomoGraph_1",
             get_fake_homo_graph(avg_num_nodes=3),
             {"nodeTypes": {"FakeHomoGraph_1_N": {"y": "label"}}},
+            False,
             False,
             {},
         ),
@@ -64,37 +77,53 @@ def test_validate_constructor() -> None:
             get_fake_homo_graph(avg_num_nodes=3, edge_dim=1),
             {},
             False,
+            False,
             {},
         ),
         (
             adbpyg_adapter,
             "FakeHomoGraph_3",
             get_fake_homo_graph(avg_num_nodes=3, edge_dim=2),
+            {
+                "nodeTypes": {"FakeHomoGraph_3_N": {"y": "label"}},
+                "edgeTypes": {
+                    ("FakeHomoGraph_3_N", "FakeHomoGraph_3_E", "FakeHomoGraph_3_N"): {
+                        "edge_attr": "features"
+                    }
+                },
+            },
+            True,
+            False,
             {},
+        ),
+        (
+            adbpyg_adapter,
+            "FakeHomoGraph_4",
+            get_fake_homo_graph(avg_num_nodes=3),
+            {
+                "edgeTypes": {
+                    ("FakeHomoGraph_4_N", "FakeHomoGraph_4_E", "FakeHomoGraph_4_N"): {}
+                },
+            },
+            True,
             False,
             {},
         ),
         (
             adbpyg_adapter,
             "FakeHeteroGraph_1",
-            get_fake_hetero_graph(avg_num_nodes=2),
-            {"nodeTypes": {"v2": {"x": udf_v2_x_tensor_to_df}}},
+            get_fake_hetero_graph(avg_num_nodes=2, edge_dim=1),
+            {},
+            False,
             False,
             {},
         ),
         (
             adbpyg_adapter,
             "FakeHeteroGraph_2",
-            get_fake_hetero_graph(avg_num_nodes=2, edge_dim=1),
-            {},
-            False,
-            {},
-        ),
-        (
-            adbpyg_adapter,
-            "FakeHeteroGraph_3",
-            get_fake_hetero_graph(avg_num_nodes=2, edge_dim=2),
-            {},
+            get_fake_hetero_graph(avg_num_nodes=2),
+            {"nodeTypes": {"v2": {"x": udf_v2_x_tensor_to_df}}},
+            True,
             False,
             {},
         ),
@@ -103,6 +132,7 @@ def test_validate_constructor() -> None:
             "SocialGraph",
             get_social_graph(),
             {"nodeTypes": {"user": {"x": ["age", "gender"]}}},
+            False,
             False,
             {},
         ),
@@ -113,15 +143,20 @@ def test_pyg_to_adb(
     name: str,
     pyg_g: Union[Data, HeteroData],
     metagraph: PyGMetagraph,
+    explicit_metagraph: bool,
     overwrite_graph: bool,
     import_options: Any,
 ) -> None:
     db.delete_graph(name, drop_collections=True, ignore_missing=True)
     adb_g = adapter.pyg_to_arangodb(
-        name, pyg_g, metagraph, overwrite_graph, **import_options
+        name, pyg_g, metagraph, explicit_metagraph, overwrite_graph, **import_options
     )
-    assert_arangodb_data(name, pyg_g, adb_g, metagraph)
-    db.delete_graph(name, drop_collections=True)
+    assert_arangodb_data(name, pyg_g, adb_g, metagraph, explicit_metagraph)
+    db.delete_graph(name, drop_collections=True, ignore_missing=True)
+
+    if explicit_metagraph and "edgeTypes" not in metagraph:
+        for n_type in metagraph.get("nodeTypes", {}).keys():
+            db.delete_collection(n_type)
 
 
 @pytest.mark.parametrize(
@@ -368,25 +403,33 @@ def assert_arangodb_data(
     pyg_g: Union[Data, HeteroData],
     adb_g: ArangoGraph,
     metagraph: PyGMetagraph,
+    explicit_metagraph: bool = False,
     skip_edge_assertion: bool = False,
 ) -> None:
     is_homogeneous = type(pyg_g) is Data
-    if is_homogeneous:
+
+    node_types: List[str]
+    edge_types: List[EdgeType]
+    if explicit_metagraph:
+        node_types = metagraph.get("nodeTypes", {}).keys()  # type: ignore
+        edge_types = metagraph.get("edgeTypes", {}).keys()  # type: ignore
+    elif is_homogeneous:
+        node_types = [name + "_N"]
         edge_types = [(name + "_N", name + "_E", name + "_N")]
     else:
+        node_types = pyg_g.node_types
         edge_types = pyg_g.edge_types
-
-    vertex_collections = adb_g.vertex_collections()
 
     x: Tensor
     y: Tensor
 
+    n_type: str
     n_meta = metagraph.get("nodeTypes", {})
-    for v_col in vertex_collections:
-        meta = n_meta.get(v_col, {})
-        collection = adb_g.vertex_collection(v_col)
+    for n_type in node_types:
+        meta = n_meta.get(n_type, {})
+        collection = db.collection(n_type)
 
-        node_data: NodeStorage = pyg_g if is_homogeneous else pyg_g[v_col]
+        node_data: NodeStorage = pyg_g if is_homogeneous else pyg_g[n_type]
         num_nodes = node_data.num_nodes
 
         assert collection.count() == num_nodes
@@ -427,13 +470,14 @@ def assert_arangodb_data(
 
     edge_weight: Tensor
     edge_attr: Tensor
+    e_type: EdgeType
     e_meta = metagraph.get("edgeTypes", {})
-    for edge_type in edge_types:
-        meta = e_meta.get(edge_type, {})
-        from_col, e_col, to_col = edge_type
-        collection = adb_g.edge_collection(e_col)
+    for e_type in edge_types:
+        meta = e_meta.get(e_type, {})
+        from_col, e_col, to_col = e_type
+        collection = db.collection(e_col)
 
-        edge_data: EdgeStorage = pyg_g if is_homogeneous else pyg_g[edge_type]
+        edge_data: EdgeStorage = pyg_g if is_homogeneous else pyg_g[e_type]
         num_edges: int = edge_data.num_edges
 
         # There can be multiple PyG edge types within
