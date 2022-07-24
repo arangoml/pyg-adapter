@@ -16,7 +16,7 @@ class ADBPyG_Controller(Abstract_ADBPyG_Controller):
     You can derive your own custom ADBPyG_Controller.
     """
 
-    def _prepare_pyg_node(self, pyg_node: Json, col: str) -> Json:
+    def _prepare_pyg_node(self, pyg_node: Json, n_type: str) -> Json:
         """Prepare a PyG node object before it gets inserted into its
         designated ArangoDB collection.
 
@@ -27,8 +27,8 @@ class ADBPyG_Controller(Abstract_ADBPyG_Controller):
 
         :param pyg_node: The PyG node object to (optionally) modify.
         :type pyg_node: adbnx_adapter.typings.Json
-        :param col: The ArangoDB collection the PyG node belongs to.
-        :type col: str
+        :param n_type: The PyG Node Type of the node
+        :type n_type: str
         :return: The PyG Node object
         :rtype: Dict[str, Any]
         """
