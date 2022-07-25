@@ -156,22 +156,22 @@ metagraph_v2 = {
     "vertexCollections": {
         "Movies": {
             "x": {  # Build a feature matrix from the "Action" & "Drama" document attributes
-                "Action": IdentityEncoder(dtype=long),
-                "Drama": IdentityEncoder(dtype=long),
+                "Action": IdentityEncoder(dtype=torch.long),
+                "Drama": IdentityEncoder(dtype=torch.long),
             },
-            "y": {"Comedy": IdentityEncoder(dtype=long)},
+            "y": {"Comedy": IdentityEncoder(dtype=torch.long)},
         },
         "Users": {
             "x": {
                 "Gender": EnumEncoder(mapping={"M": 0, "F": 1}),
-                "Age": IdentityEncoder(dtype=long),
+                "Age": IdentityEncoder(dtype=torch.long),
             }
         },
     },
     "edgeCollections": {
         "Ratings": {
             "edge_weight": {
-                "Rating": IdentityEncoder(dtype=long),
+                "Rating": IdentityEncoder(dtype=torch.long),
             }
         }
     },
@@ -195,13 +195,13 @@ metagraph_v3 = {
     "vertexCollections": {
         "v0": {
             "x": udf_v0_x,  # supports named functions
-            "y": lambda df: tensor(df["y"].to_list()),  # also supports lambda functions
+            "y": lambda df: torch.tensor(df["y"].to_list()),  # also supports lambda functions
         },
         "v1": {"x": udf_v1_x},
-        "v2": {"x": (lambda df: tensor(df["x"].to_list()))},
+        "v2": {"x": (lambda df: torch.tensor(df["x"].to_list()))},
     },
     "edgeCollections": {
-        "e0": {"edge_attr": (lambda df: tensor(df["edge_attr"].to_list()))},
+        "e0": {"edge_attr": (lambda df: torch.tensor(df["edge_attr"].to_list()))},
     },
 }
 pyg_g = adbpyg_adapter.arangodb_to_pyg("FakeData", metagraph_v3)
