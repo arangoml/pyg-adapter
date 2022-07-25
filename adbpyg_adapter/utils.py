@@ -3,6 +3,7 @@ import os
 from typing import Any, Dict, Optional
 
 from pandas import DataFrame
+from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from torch import Tensor, from_numpy, zeros
 
 logger = logging.getLogger(__package__)
@@ -13,6 +14,21 @@ formatter = logging.Formatter(
 )
 handler.setFormatter(formatter)
 logger.addHandler(handler)
+
+
+def progress(
+    text: str,
+    text_style: str = "none",
+    spinner_name: str = "aesthetic",
+    spinner_style: str = "#5BC0DE",
+    transient: bool = False,
+) -> Progress:
+    return Progress(
+        TextColumn(text, style=text_style),
+        SpinnerColumn(spinner_name, spinner_style),
+        TimeElapsedColumn(),
+        transient=transient,
+    )
 
 
 class EnumEncoder(object):

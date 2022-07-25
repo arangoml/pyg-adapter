@@ -5,21 +5,18 @@ from collections import defaultdict
 from types import FunctionType
 from typing import Any, DefaultDict, Dict, List, Set, Union
 
-from arango.cursor import Cursor
 from arango.database import Database
 from arango.graph import Graph as ADBGraph
-from arango.result import Result
 from pandas import DataFrame
 from torch import Tensor, cat, tensor
 from torch_geometric.data import Data, HeteroData
 from torch_geometric.data.storage import EdgeStorage, NodeStorage
 from torch_geometric.typing import EdgeType
 
-from adbpyg_adapter.controller import ADBPyG_Controller
-
 from .abc import Abstract_ADBPyG_Adapter
+from .controller import ADBPyG_Controller
 from .typings import ADBMetagraph, Json, PyGEncoder, PyGMetagraph
-from .utils import logger
+from .utils import logger, progress
 
 
 class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
@@ -186,7 +183,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         for v_col, meta in metagraph["vertexCollections"].items():
             logger.debug(f"Preparing '{v_col}' vertices")
 
-            df = DataFrame(self.__fetch_adb_docs(v_col, query_options))
+            df = self.__fetch_adb_docs(v_col, query_options)
             adb_map.update({adb_id: pyg_id for pyg_id, adb_id in enumerate(df["_id"])})
 
             node_data: NodeStorage = data if is_homogeneous else data[v_col]
@@ -196,7 +193,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         for e_col, meta in metagraph["edgeCollections"].items():
             logger.debug(f"Preparing '{e_col}' edges")
 
-            df = DataFrame(self.__fetch_adb_docs(e_col, query_options))
+            df = self.__fetch_adb_docs(e_col, query_options)
             df["from_col"] = df["_from"].str.split("/").str[0]
             df["to_col"] = df["_to"].str.split("/").str[0]
 
@@ -409,7 +406,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 f = lambda e: self.__cntrl._prepare_pyg_edge(e, e_type)
                 df = df.apply(f, axis=1)
 
-            self.__insert_adb_docs(e_col, df.to_dict("records"), import_options)
+            self.__insert_adb_docs(e_type, df.to_dict("records"), import_options)
 
         logger.info(f"Created ArangoDB '{name}' Graph")
         return adb_graph
@@ -458,23 +455,58 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         return edge_definitions
 
-    def __fetch_adb_docs(self, col: str, query_options: Any) -> Result[Cursor]:
-        """Fetches ArangoDB documents within a collection.
+    def __fetch_adb_docs(self, col: str, query_options: Any) -> DataFrame:
+        """Fetches ArangoDB documents within a collection. Returns the
+            documents in a Pandas DataFrame.
 
         :param col: The ArangoDB collection.
         :type col: str
         :param query_options: Keyword arguments to specify AQL query options
             when fetching documents from the ArangoDB instance.
         :type query_options: Any
-        :return: Result cursor.
-        :rtype: arango.cursor.Cursor
+        :return: A Pandas DataFrame representing the ArangoDB documents.
+        :rtype: pandas.DataFrame
         """
-        aql = f"""
-            FOR doc IN {col}
+        aql = """
+            FOR doc IN @@col
                 RETURN doc
         """
 
-        return self.__db.aql.execute(aql, **query_options)
+        with progress(
+            f"Export: {col}", text_style="#97C423", spinner_style="#7D3B04"
+        ) as p:
+            p.add_task("__fetch_adb_docs")
+
+            return DataFrame(
+                self.__db.aql.execute(
+                    aql, count=True, bind_vars={"@col": col}, **query_options
+                )
+            )
+
+    def __insert_adb_docs(
+        self, doc_type: Union[str, EdgeType], docs: List[Json], kwargs: Any
+    ) -> None:
+        """Insert ArangoDB documents into their ArangoDB collection.
+
+        :param doc_type: The node or edge type of the soon-to-be ArangoDB documents
+        :type doc_type: str | tuple[str, str, str]
+        :param docs: To-be-inserted ArangoDB documents
+        :type docs: List[Json]
+        :param kwargs: Keyword arguments to specify additional
+            parameters for ArangoDB document insertion. Full parameter list:
+            https://docs.python-arango.com/en/main/specs.html#arango.collection.Collection.import_bulk
+        """
+        col = doc_type if type(doc_type) is str else doc_type[1]
+
+        with progress(
+            f"Import: {doc_type} ({len(docs)})",
+            text_style="#825FE1",
+            spinner_style="#3AA7F4",
+        ) as p:
+            p.add_task("__insert_adb_docs")
+
+            result = self.__db.collection(col).import_bulk(docs, **kwargs)
+            logger.debug(result)
 
     def __build_tensor_from_dataframe(
         self, df: DataFrame, meta_val: Union[str, Dict[str, PyGEncoder], FunctionType]
@@ -562,18 +594,3 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 got {type(meta_val)} instead.
             """
             raise TypeError(msg)
-
-    def __insert_adb_docs(self, col: str, docs: List[Json], kwargs: Any) -> None:
-        """Insert ArangoDB documents into their ArangoDB collection.
-
-        :param col: The ArangoDB collection name
-        :type col: str
-        :param docs: To-be-inserted ArangoDB documents
-        :type docs: List[Json]
-        :param kwargs: Keyword arguments to specify additional
-            parameters for ArangoDB document insertion. Full parameter list:
-            https://docs.python-arango.com/en/main/specs.html#arango.collection.Collection.import_bulk
-        """
-        logger.debug(f"Inserting {len(docs)} documents into '{col}'")
-        result = self.__db.collection(col).import_bulk(docs, **kwargs)
-        logger.debug(result)

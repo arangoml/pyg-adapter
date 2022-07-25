@@ -18,6 +18,7 @@ setup(
     license="Apache Software License",
     install_requires=[
         "requests>=2.27.1",
+        "rich>=12.5.1",
         "pandas>=1.3.5",
         "python-arango>=7.4.1",
         "torch>=1.12.0",
