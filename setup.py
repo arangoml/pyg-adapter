@@ -38,7 +38,6 @@ setup(
             "types-setuptools",
             "types-requests",
             "networkx",
-            "sentence-transformers",
         ],
     },
     classifiers=[

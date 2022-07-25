@@ -353,7 +353,6 @@ def test_full_cycle_imdb() -> None:
             "Movies": {
                 "y": "Comedy",  # { "Comedy": IdentityEncoder(dtype=long) }
                 "x": {
-                    # "movie title": SequenceEncoder(),
                     "Action": IdentityEncoder(dtype=long),
                     "Drama": IdentityEncoder(dtype=long),
                     # etc....

@@ -8,8 +8,7 @@ from arango import ArangoClient
 from arango.database import StandardDatabase
 from arango.http import DefaultHTTPClient
 from pandas import DataFrame
-from sentence_transformers import SentenceTransformer
-from torch import Tensor, no_grad, tensor
+from torch import Tensor, tensor
 from torch_geometric.data import Data, HeteroData
 from torch_geometric.datasets import Amazon, FakeDataset, FakeHeteroDataset, KarateClub
 
@@ -132,22 +131,3 @@ def udf_key_df_to_tensor(key: str) -> Callable[[DataFrame], Tensor]:
         return tensor(df[key].to_list())
 
     return f
-
-
-class SequenceEncoder(object):
-    def __init__(
-        self, model_name: str = "all-MiniLM-L6-v2", device: Any = None
-    ) -> None:
-        self.device = device
-        self.model = SentenceTransformer(model_name, device=device)
-
-    @no_grad()
-    def __call__(self, df: DataFrame) -> Tensor:
-        x = self.model.encode(
-            df.values,
-            show_progress_bar=True,
-            convert_to_tensor=True,
-            device=self.device,
-        )
-        t: Tensor = x.cpu()
-        return t
