@@ -73,7 +73,6 @@ adbpyg_adapter = ADBPyG_Adapter(db)
 adb_g = adbpyg_adapter.pyg_to_arangodb("FakeData", data)
 
 # 1.2: PyG to ArangoDB with a (completely optional) metagraph for customized adapter behaviour
-
 def y_tensor_to_2_column_dataframe(pyg_tensor):
     label_map = {0: "Kiwi", 1: "Blueberry", 2: "Avocado"}
 
@@ -88,7 +87,7 @@ metagraph = {
     "nodeTypes": {
         "v0": {
             "x": "features",  # 1) you can specify a string value for attribute renaming
-            "y": y_tensor_to_2_column_dataframe,  # 2) you can specify a function for user-defined handling, as long as function returns a Pandas DataFrame
+            "y": y_tensor_to_2_column_dataframe,  # 2) you can specify a function for user-defined handling, as long as the function returns a Pandas DataFrame
         },
     },
     "edgeTypes": {
@@ -102,7 +101,12 @@ metagraph = {
 
 adb_g = adbpyg_adapter.pyg_to_arangodb("FakeData", data, metagraph)
 
-# 1.3: PyG to ArangoDB with a Custom Controller  (more user-defined behavior)
+# 1.3: PyG to ArangoDB with the same (optional) metagraph, but with `explicit_metagraph=True`
+# With `explicit_metagraph=True`, the node & edge types omitted from the metagraph will not be converted to ArangoDB.
+# Only 'v0' and ('v0', 'e0', 'v0') will be brought over (i.e 'v1', 'v2', ('v0', 'e0', 'v1'), ... are ignored)
+adb_g = adbpyg_adapter.pyg_to_arangodb("FakeData", data, metagraph, explicit_metagraph=True)
+
+# 1.4: PyG to ArangoDB with a Custom Controller  (more user-defined behavior)
 class Custom_ADBPyG_Controller(ADBPyG_Controller):
     def _prepare_pyg_node(self, pyg_node: dict, col: str) -> dict:
         """Optionally modify a PyG node object before it gets inserted into its designated ArangoDB collection.
