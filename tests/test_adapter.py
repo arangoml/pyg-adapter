@@ -365,13 +365,7 @@ def test_full_cycle_imdb() -> None:
                 }
             },
         },
-        "edgeCollections": {
-            "Ratings": {
-                "edge_weight": {
-                    "Rating": IdentityEncoder(dtype=long),
-                }
-            }
-        },
+        "edgeCollections": {"Ratings": {"edge_weight": "Rating"}},
     }
 
     pyg_g = adbpyg_adapter.arangodb_to_pyg(name, adb_to_pyg_metagraph)
@@ -385,7 +379,7 @@ def test_full_cycle_imdb() -> None:
             },
             "Users": {"x": udf_users_x_tensor_to_df},  # ["age", "gender"],
         },
-        "edgeTypes": {("Users", "Ratings", "Movies"): {"edge_weight": ["rating"]}},
+        "edgeTypes": {("Users", "Ratings", "Movies"): {"edge_weight": "rating"}},
     }
     adb_g = adbpyg_adapter.pyg_to_arangodb(
         name, pyg_g, pyg_to_adb_metagraph, overwrite=True

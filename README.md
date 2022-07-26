@@ -158,7 +158,7 @@ metagraph_v2 = {
                 "Action": IdentityEncoder(dtype=torch.long),
                 "Drama": IdentityEncoder(dtype=torch.long),
             },
-            "y": {"Comedy": IdentityEncoder(dtype=torch.long)},
+            "y": "Comedy",
         },
         "Users": {
             "x": {
@@ -169,8 +169,7 @@ metagraph_v2 = {
     },
     "edgeCollections": {
         "Ratings": {
-            "edge_weight": {
-                "Rating": IdentityEncoder(dtype=torch.long),
+            "edge_weight": "Rating"
             }
         }
     },
