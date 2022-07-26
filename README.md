@@ -150,6 +150,7 @@ metagraph_v1 = {
 pyg_g = adbpyg_adapter.arangodb_to_pyg("FakeData", metagraph_v1)
 
 # 2.4: ArangoDB to PyG via Metagraph v2 (transfer attributes via user-defined encoders)
+# For more info on user-defined encoders in PyG, see https://pytorch-geometric.readthedocs.io/en/latest/notes/load_csv.html
 metagraph_v2 = {
     "vertexCollections": {
         "Movies": {
