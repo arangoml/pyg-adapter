@@ -103,7 +103,7 @@ adb_g = adbpyg_adapter.pyg_to_arangodb("FakeData", data, metagraph)
 
 # 1.3: PyG to ArangoDB with the same (optional) metagraph, but with `explicit_metagraph=True`
 # With `explicit_metagraph=True`, the node & edge types omitted from the metagraph will not be converted to ArangoDB.
-# Only 'v0' and ('v0', 'e0', 'v0') will be brought over (i.e 'v1', 'v2', ('v0', 'e0', 'v1'), ... are ignored)
+# Only 'v0' and ('v0', 'e0', 'v0') will be brought over (i.e 'v1', ('v0', 'e0', 'v1'), ... are ignored)
 adb_g = adbpyg_adapter.pyg_to_arangodb("FakeData", data, metagraph, explicit_metagraph=True)
 
 # 1.4: PyG to ArangoDB with a Custom Controller  (more user-defined behavior)
@@ -134,7 +134,7 @@ adbpyg_adapter.pyg_to_arangodb("FakeData", data, overwrite_graph=True, on_duplic
 pyg_g = adbpyg_adapter.arangodb_graph_to_pyg("FakeData")
 
 # 2.2: ArangoDB to PyG via Collection names (does not transfer attributes)
-pyg_g = adbpyg_adapter.arangodb_collections_to_pyg("FakeData", v_cols={"v0", "v1", "v2"}, e_cols={"e0"})
+pyg_g = adbpyg_adapter.arangodb_collections_to_pyg("FakeData", v_cols={"v0", "v1"}, e_cols={"e0"})
 
 # 2.3: ArangoDB to PyG via Metagraph v1 (transfer attributes "as is", meaning they are already formatted to PyG data standards)
 metagraph_v1 = {
@@ -142,7 +142,6 @@ metagraph_v1 = {
         # we instruct the adapter to create the "x" and "y" tensor data from the "x" and "y" ArangoDB attributes
         "v0": { "x": "x", "y": "y"},  
         "v1": {"x": "x"},
-        "v2": {"x": "x"},
     },
     "edgeCollections": {
         "e0": {"edge_attr": "edge_attr"},
@@ -197,7 +196,6 @@ metagraph_v3 = {
             "y": lambda df: torch.tensor(df["y"].to_list()),  # also supports lambda functions
         },
         "v1": {"x": udf_v1_x},
-        "v2": {"x": (lambda df: torch.tensor(df["x"].to_list()))},
     },
     "edgeCollections": {
         "e0": {"edge_attr": (lambda df: torch.tensor(df["edge_attr"].to_list()))},
