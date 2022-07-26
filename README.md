@@ -128,7 +128,7 @@ adb_g = ADBPyG_Adapter(db, Custom_ADBPyG_Controller()).pyg_to_arangodb("FakeData
 ############################### ArangoDB to PyG ###############################
 
 # Start from scratch!
-adbpyg_adapter.pyg_to_arangodb("FakeData", data, ovewrite_graph=True, on_duplicate="replace")
+adbpyg_adapter.pyg_to_arangodb("FakeData", data, overwrite_graph=True, on_duplicate="replace")
 
 # 2.1: ArangoDB to PyG via Graph name (does not transfer attributes)
 pyg_g = adbpyg_adapter.arangodb_graph_to_pyg("FakeData")
