@@ -8,8 +8,8 @@ from torch_geometric.data.storage import EdgeStorage, NodeStorage
 from torch_geometric.typing import EdgeType
 
 from adbpyg_adapter import ADBPyG_Adapter
+from adbpyg_adapter.encoders import EnumEncoder, IdentityEncoder
 from adbpyg_adapter.typings import ADBMetagraph, PyGMetagraph
-from adbpyg_adapter.utils import EnumEncoder, IdentityEncoder
 
 from .conftest import (  # SequenceEncoder,
     adbpyg_adapter,

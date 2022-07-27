@@ -50,7 +50,7 @@ from torch_geometric.datasets import FakeHeteroDataset
 from arango import ArangoClient  # Python-Arango driver
 
 from adbpyg_adapter import ADBPyG_Adapter, ADBPyG_Controller
-from adbpyg_adapter.utils import IdentityEncoder, EnumEncoder
+from adbpyg_adapter.encoders import IdentityEncoder, EnumEncoder
 
 # Load some fake PyG data for demo purposes
 data = FakeHeteroDataset(
@@ -99,10 +99,10 @@ metagraph = {
 }
 
 
-adb_g = adbpyg_adapter.pyg_to_arangodb("FakeData", data, metagraph)
+adb_g = adbpyg_adapter.pyg_to_arangodb("FakeData", data, metagraph, explicit_metagraph=False)
 
 # 1.3: PyG to ArangoDB with the same (optional) metagraph, but with `explicit_metagraph=True`
-# With `explicit_metagraph=True`, the node & edge types omitted from the metagraph will not be converted to ArangoDB.
+# With `explicit_metagraph=True`, the node & edge types omitted from the metagraph will NOT be converted to ArangoDB.
 # Only 'v0' and ('v0', 'e0', 'v0') will be brought over (i.e 'v1', ('v0', 'e0', 'v1'), ... are ignored)
 adb_g = adbpyg_adapter.pyg_to_arangodb("FakeData", data, metagraph, explicit_metagraph=True)
 
