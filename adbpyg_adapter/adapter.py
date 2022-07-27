@@ -271,7 +271,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         name: str,
         pyg_g: Union[Data, HeteroData],
         metagraph: PyGMetagraph = {},
-        explicit_metagraph: bool = False,
+        explicit_metagraph: bool = True,
         overwrite_graph: bool = False,
         **import_options: Any,
     ) -> ADBGraph:
@@ -287,11 +287,11 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             one is optional. See below for an example of **metagraph**.
         :type metagraph: adbpyg_adapter.typings.PyGMetagraph
         :param explicit_metagraph: Whether to take the metagraph at face value or not.
-            If True, node & edge types omitted from the metagraph will NOT be
-            brought over into ArangoDB. Defaults to False.
+            If False, node & edge types OMITTED from the metagraph will be
+            brought over into ArangoDB. Defaults to True.
         :type explicit_metagraph: bool
         :param overwrite_graph: Overwrites the graph if it already exists.
-            Does not drop associated collections.
+            Does not drop associated collections. Defaults to False.
         :type overwrite_graph: bool
         :param import_options: Keyword arguments to specify additional
             parameters for ArangoDB document insertion. Full parameter list:
@@ -302,8 +302,14 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
 
         1) Here is an example entry for parameter **metagraph**:
-
         .. code-block:: python
+
+        def v2_x_to_pandas_dataframe(t: Tensor):
+            df = pandas.DataFrame(columns=["v2_features"])
+            df["v2_features"] = t.tolist()
+            # do more things with df["v2_features"] here ...
+            return df
+
         {
             "nodeTypes": {
                 "v0": {'x': 'v0_features', 'y': 'label'}, # supports str as value
@@ -317,12 +323,6 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             },
         }
 
-        def v2_x_to_pandas_dataframe(t: Tensor):
-            df = pandas.DataFrame(columns=["v2_features"])
-            df["v2_features"] = t.tolist()
-            # do more things with df["v2_features"] here ...
-            return df
-
         Using the metagraph above will set a custom ArangoDB attribute key for
         the v0 "x" feature matrix ('v0_features'), and its "y" label ('label').
         Furthemore, the v1 "x" feature matrix is broken down in order to
@@ -335,7 +335,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         node_types: List[str]
         edge_types: List[EdgeType]
-        if explicit_metagraph:
+        if metagraph and explicit_metagraph:
             node_types = metagraph.get("nodeTypes", {}).keys()  # type: ignore
             edge_types = metagraph.get("edgeTypes", {}).keys()  # type: ignore
 
