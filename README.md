@@ -118,9 +118,16 @@ class Custom_ADBPyG_Controller(ADBPyG_Controller):
         pyg_node["foo"] = "bar"
         return pyg_node
 
-    # def _prepare_pyg_edge(self, pyg_edge: Json, edge_type: tuple) -> dict:
-    # ...
-    # return pyg_edge
+    def _prepare_pyg_edge(self, pyg_edge: dict, edge_type: tuple) -> dict:
+        """Optionally modify a PyG edge object before it gets inserted into its designated ArangoDB collection.
+
+        :param pyg_edge: The PyG edge object to (optionally) modify.
+        :param edge_type: The Edge Type of the PyG edge. Formatted
+            as (from_collection, edge_collection, to_collection)
+        :return: The PyG Edge object
+        """
+        pyg_edge["bar"] = "foo"
+        return pyg_edge
 
 
 adb_g = ADBPyG_Adapter(db, Custom_ADBPyG_Controller()).pyg_to_arangodb("FakeData", data)

@@ -29,16 +29,16 @@ setup(
     ],
     extras_require={
         "dev": [
-            "black",
+            "black>=22.6.0",
             "flake8>=3.8.0",
             "isort>=5.0.0",
             "mypy>=0.790",
             "pytest>=6.0.0",
             "pytest-cov>=2.0.0",
             "coveralls>=3.3.1",
-            "types-setuptools",
-            "types-requests",
-            "networkx",
+            "types-setuptools>=63.2.1",
+            "types-requests>=2.28.5",
+            "networkx>=2.5.1",
         ],
     },
     classifiers=[
