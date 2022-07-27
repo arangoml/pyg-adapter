@@ -83,11 +83,20 @@ def test_validate_constructor() -> None:
         (
             adbpyg_adapter,
             "FakeHomoGraph_3",
+            get_fake_homo_graph(avg_num_nodes=3, edge_dim=1),
+            {},
+            True,
+            False,
+            {},
+        ),
+        (
+            adbpyg_adapter,
+            "FakeHomoGraph_4",
             get_fake_homo_graph(avg_num_nodes=3, edge_dim=2),
             {
-                "nodeTypes": {"FakeHomoGraph_3_N": {"y": "label"}},
+                "nodeTypes": {"FakeHomoGraph_4_N": {"y": "label"}},
                 "edgeTypes": {
-                    ("FakeHomoGraph_3_N", "FakeHomoGraph_3_E", "FakeHomoGraph_3_N"): {
+                    ("FakeHomoGraph_4_N", "FakeHomoGraph_4_E", "FakeHomoGraph_4_N"): {
                         "edge_attr": "features"
                     }
                 },
@@ -98,11 +107,11 @@ def test_validate_constructor() -> None:
         ),
         (
             adbpyg_adapter,
-            "FakeHomoGraph_4",
+            "FakeHomoGraph_5",
             get_fake_homo_graph(avg_num_nodes=3),
             {
                 "edgeTypes": {
-                    ("FakeHomoGraph_4_N", "FakeHomoGraph_4_E", "FakeHomoGraph_4_N"): {}
+                    ("FakeHomoGraph_5_N", "FakeHomoGraph_5_E", "FakeHomoGraph_5_N"): {}
                 },
             },
             True,
@@ -403,7 +412,7 @@ def assert_arangodb_data(
 
     node_types: List[str]
     edge_types: List[EdgeType]
-    if explicit_metagraph:
+    if metagraph and explicit_metagraph:
         node_types = metagraph.get("nodeTypes", {}).keys()  # type: ignore
         edge_types = metagraph.get("edgeTypes", {}).keys()  # type: ignore
     elif is_homogeneous:
