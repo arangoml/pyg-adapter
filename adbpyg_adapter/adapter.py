@@ -70,7 +70,6 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         self,
         name: str,
         metagraph: ADBMetagraph,
-        cast_features_to_float: bool = False,
         **query_options: Any,
     ) -> Union[Data, HeteroData]:
         """Create a PyG graph from the user-defined metagraph. DOES carry
@@ -83,11 +82,6 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             which ArangoDB attributes will become PyG features/labels.
             See below for examples of **metagraph**
         :type metagraph: adbpyg_adapter.typings.ADBMetagraph
-        :param cast_features_to_float: If set to True, casts the tensors associated
-            to the 'x', 'edge_attr', or 'edge_weight' PyG properties to float.
-            NOTE: This behaviour only applies if the value mapped to the **metagraph**
-            key is of type string (see the **metagraph** example #1 below).
-        :type cast_features_to_float: bool
         :param query_options: Keyword arguments to specify AQL query options when
             fetching documents from the ArangoDB instance. Full parameter list:
             https://docs.python-arango.com/en/main/specs.html#arango.aql.AQL.execute
@@ -197,9 +191,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
             node_data: NodeStorage = data if is_homogeneous else data[v_col]
             for k, v in meta.items():
-                node_data[k] = self.__build_tensor_from_dataframe(
-                    df, k, v, cast_features_to_float
-                )
+                node_data[k] = self.__build_tensor_from_dataframe(df, k, v)
 
         for e_col, meta in metagraph["edgeCollections"].items():
             logger.debug(f"Preparing '{e_col}' edges")
@@ -222,9 +214,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 edge_data: EdgeStorage = data if is_homogeneous else data[edge_type]
                 edge_data.edge_index = tensor([from_nodes, to_nodes])
                 for k, v in meta.items():
-                    edge_data[k] = self.__build_tensor_from_dataframe(
-                        et_df, k, v, cast_features_to_float
-                    )
+                    edge_data[k] = self.__build_tensor_from_dataframe(et_df, k, v)
 
         logger.info(f"Created PyG '{name}' Graph")
         return data
@@ -528,7 +518,6 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         adb_df: DataFrame,
         meta_key: str,
         meta_val: Union[str, Dict[str, PyGEncoder], FunctionType],
-        cast_features_to_float: bool,
     ) -> Tensor:
         """Constructs a PyG-ready Tensor from a Pandas Dataframe, based on
         the nature of the user-defined metagraph.
@@ -545,22 +534,13 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             2) dict: encode all `key` column values & concatenate as a Tensor
             3) function: execute a user-defined function to return a Tensor
         :type meta_val: str | dict | function
-        :param cast_features_to_float: If set to True, casts the tensors associated
-            to the 'x', 'edge_attr', or 'edge_weight' PyG properties to type float.
-            NOTE: This behaviour only applies if **meta_val** is of type string.
         :return: A PyG-ready tensor equivalent to the dataframe
         :rtype: torch.Tensor
         """
         logger.debug(f"__build_tensor_from_dataframe(df, '{meta_key}', {meta_val})")
 
         if type(meta_val) is str:
-            pyg_tensor = tensor(adb_df[meta_val].to_list())
-
-            # this is a hacky implementation, apologies in advance
-            if cast_features_to_float and meta_key in ["x", "edge_attr", "edge_weight"]:
-                return pyg_tensor.float()
-
-            return pyg_tensor
+            return tensor(adb_df[meta_val].to_list())
 
         elif type(meta_val) is dict:
             data = []
