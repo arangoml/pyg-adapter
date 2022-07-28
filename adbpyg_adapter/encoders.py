@@ -19,16 +19,16 @@ class IdentityEncoder(object):
         return from_numpy(df.values).view(-1, 1).to(self.dtype)
 
 
-class EnumEncoder(object):
-    """Converts a list of values into a PyTorch tensor through enum assignment"""
+class CategoricalEncoder(object):
+    """Converts a list of values into a PyTorch tensor through a mapping"""
 
     def __init__(self, mapping: Optional[Dict[Any, Any]] = None) -> None:
         self.mapping = mapping
 
     def __call__(self, df: DataFrame) -> Tensor:
         if self.mapping is None:
-            enums = df.unique()
-            self.mapping = {enum: i for i, enum in enumerate(enums)}
+            unique_vals = df.unique()
+            self.mapping = {u_v: i for i, u_v in enumerate(unique_vals)}
 
         x = zeros(len(df), 1)
         for i, col in enumerate(df.values):

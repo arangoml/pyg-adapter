@@ -8,7 +8,7 @@ from torch_geometric.data.storage import EdgeStorage, NodeStorage
 from torch_geometric.typing import EdgeType
 
 from adbpyg_adapter import ADBPyG_Adapter
-from adbpyg_adapter.encoders import EnumEncoder, IdentityEncoder
+from adbpyg_adapter.encoders import CategoricalEncoder, IdentityEncoder
 from adbpyg_adapter.typings import ADBMetagraph, PyGMetagraph
 
 from .conftest import (  # SequenceEncoder,
@@ -370,7 +370,7 @@ def test_full_cycle_imdb() -> None:
             "Users": {
                 "x": {
                     "Age": IdentityEncoder(dtype=long),
-                    "Gender": EnumEncoder(),
+                    "Gender": CategoricalEncoder(),
                 }
             },
         },

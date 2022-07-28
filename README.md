@@ -50,7 +50,7 @@ from torch_geometric.datasets import FakeHeteroDataset
 from arango import ArangoClient  # Python-Arango driver
 
 from adbpyg_adapter import ADBPyG_Adapter, ADBPyG_Controller
-from adbpyg_adapter.encoders import IdentityEncoder, EnumEncoder
+from adbpyg_adapter.encoders import IdentityEncoder, CategoricalEncoder
 
 # Load some fake PyG data for demo purposes
 data = FakeHeteroDataset(
@@ -169,7 +169,7 @@ metagraph_v2 = {
         },
         "Users": {
             "x": {
-                "Gender": EnumEncoder(mapping={"M": 0, "F": 1}),
+                "Gender": CategoricalEncoder(mapping={"M": 0, "F": 1}),
                 "Age": IdentityEncoder(dtype=torch.long),
             }
         },

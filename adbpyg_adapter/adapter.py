@@ -67,7 +67,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         logger.setLevel(level)
 
     def arangodb_to_pyg(
-        self, name: str, metagraph: ADBMetagraph, **query_options: Any
+        self,
+        name: str,
+        metagraph: ADBMetagraph,
+        **query_options: Any,
     ) -> Union[Data, HeteroData]:
         """Create a PyG graph from the user-defined metagraph. DOES carry
             over node/edge features/labels, via the **metagraph**.
@@ -119,7 +122,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 },
                 "Users": {
                     "x": {
-                        "Gender": EnumEncoder(),
+                        "Gender": CategoricalEncoder(),
                         "Age": IdentityEncoder(dtype=long),
                     }
                 },
@@ -188,7 +191,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
             node_data: NodeStorage = data if is_homogeneous else data[v_col]
             for k, v in meta.items():
-                node_data[k] = self.__build_tensor_from_dataframe(df, v)
+                node_data[k] = self.__build_tensor_from_dataframe(df, k, v)
 
         for e_col, meta in metagraph["edgeCollections"].items():
             logger.debug(f"Preparing '{e_col}' edges")
@@ -211,7 +214,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 edge_data: EdgeStorage = data if is_homogeneous else data[edge_type]
                 edge_data.edge_index = tensor([from_nodes, to_nodes])
                 for k, v in meta.items():
-                    edge_data[k] = self.__build_tensor_from_dataframe(et_df, v)
+                    edge_data[k] = self.__build_tensor_from_dataframe(et_df, k, v)
 
         logger.info(f"Created PyG '{name}' Graph")
         return data
@@ -377,9 +380,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             df = DataFrame([{"_key": str(i)} for i in range(node_data.num_nodes)])
 
             meta = n_meta.get(n_type, {})
-            for k, v in node_data.items():
-                if type(v) is Tensor and len(v) == node_data.num_nodes:
-                    df = df.join(self.__build_dataframe_from_tensor(v, meta.get(k, k)))
+            for k, t in node_data.items():
+                if type(t) is Tensor and len(t) == node_data.num_nodes:
+                    v = meta.get(k, k)
+                    df = df.join(self.__build_dataframe_from_tensor(t, k, v))
 
             if type(self.__cntrl) is not ADBPyG_Controller:
                 f = lambda n: self.__cntrl._prepare_pyg_node(n, n_type)
@@ -398,9 +402,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             df["_to"] = to_col + "/" + df["_to"].astype(str)
 
             meta = e_meta.get(e_type, {})
-            for k, v in edge_data.items():
-                if type(v) is Tensor and len(v) == edge_data.num_edges:
-                    df = df.join(self.__build_dataframe_from_tensor(v, meta.get(k, k)))
+            for k, t in edge_data.items():
+                if type(t) is Tensor and len(t) == edge_data.num_edges:
+                    v = meta.get(k, k)
+                    df = df.join(self.__build_dataframe_from_tensor(t, k, v))
 
             if type(self.__cntrl) is not ADBPyG_Controller:
                 f = lambda e: self.__cntrl._prepare_pyg_edge(e, e_type)
@@ -509,14 +514,19 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             logger.debug(result)
 
     def __build_tensor_from_dataframe(
-        self, df: DataFrame, meta_val: Union[str, Dict[str, PyGEncoder], FunctionType]
+        self,
+        adb_df: DataFrame,
+        meta_key: str,
+        meta_val: Union[str, Dict[str, PyGEncoder], FunctionType],
     ) -> Tensor:
         """Constructs a PyG-ready Tensor from a Pandas Dataframe, based on
         the nature of the user-defined metagraph.
 
-        :param df: The Pandas Dataframe representing ArangoDB data.
-        :type df: pandas.DataFrame
-        :param meta_val: The value mapped to the ArangoDB-PyG metagraph key to
+        :param adb_df: The Pandas Dataframe representing ArangoDB data.
+        :type adb_df: pandas.DataFrame
+        :param meta_key: The current ArangoDB-PyG metagraph key
+        :type meta_key: str
+        :param meta_val: The value mapped to **meta_key** to
             help convert **df** into a PyG-ready Tensor.
             e.g the value of `metagraph['vertexCollections']['users']['x']`.
             The current accepted **meta_val** types are:
@@ -527,16 +537,18 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :return: A PyG-ready tensor equivalent to the dataframe
         :rtype: torch.Tensor
         """
+        logger.debug(f"__build_tensor_from_dataframe(df, '{meta_key}', {meta_val})")
+
         if type(meta_val) is str:
-            return tensor(df[meta_val].to_list())
+            return tensor(adb_df[meta_val].to_list())
 
         elif type(meta_val) is dict:
             data = []
             for attr, encoder in meta_val.items():
                 if encoder is None:
-                    data.append(tensor(df[attr].to_list()))
+                    data.append(tensor(adb_df[attr].to_list()))
                 elif callable(encoder):
-                    data.append(encoder(df[attr]))
+                    data.append(encoder(adb_df[attr]))
                 else:
                     msg = f"Invalid encoder for ArangoDB attribute '{attr}': {encoder}"
                     raise ValueError(msg)
@@ -545,25 +557,31 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         elif type(meta_val) is FunctionType:
             # **meta_val** is a user-defined that returns a tensor
-            user_defined_tensor: Tensor = meta_val(df)
+            user_defined_tensor: Tensor = meta_val(adb_df)
             return user_defined_tensor
 
         else:
             msg = f"""
-                Invalid **meta_val** argument type: {meta_val}.
+                Invalid **meta_val** argument type {meta_val}
+                for **meta_key** '{meta_key}'.
                 Expected Union[str, Dict[str, PyGEncoder], FunctionType],
                 got {type(meta_val)} instead.
             """
             raise TypeError(msg)
 
     def __build_dataframe_from_tensor(
-        self, tensor: Tensor, meta_val: Union[str, List[str], FunctionType]
+        self,
+        pyg_tensor: Tensor,
+        meta_key: str,
+        meta_val: Union[str, List[str], FunctionType],
     ) -> DataFrame:
         """Builds a Pandas DataFrame from PyG Tensor, based on
         the nature of the user-defined metagraph.
 
-        :param tensor: The Tensor representing PyG data.
-        :type tensor: torch.Tensor
+        :param pyg_tensor: The Tensor representing PyG data.
+        :type pyg_tensor: torch.Tensor
+        :param meta_key: The current PyG-ArangoDB metagraph key
+        :type meta_key
         :param meta_val: The value mapped to the PyG-ArangoDB metagraph key to
             help convert **tensor** into a Pandas Dataframe.
             e.g the value of `metagraph['nodeTypes']['users']['x']`.
@@ -576,21 +594,24 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :return: A Pandas DataFrame equivalent to the Tensor
         :rtype: pandas.DataFrame
         """
+        logger.debug(f"__build_dataframe_from_tensor(df, '{meta_key}', {meta_val})")
+
         if type(meta_val) in [str, list]:
             columns = [meta_val] if type(meta_val) is str else meta_val
             df = DataFrame(columns=columns)
-            df[meta_val] = tensor.tolist()
+            df[meta_val] = pyg_tensor.tolist()
             return df
 
         elif type(meta_val) is FunctionType:
             # **meta_val** is a user-defined function that returns a dataframe
-            user_defined_dataframe: DataFrame = meta_val(tensor)
+            user_defined_dataframe: DataFrame = meta_val(pyg_tensor)
             return user_defined_dataframe
 
         else:
             msg = f"""
-                Invalid **meta_val** argument type: {meta_val}.
-                Expected Union[str, FunctionType],
+                Invalid **meta_val** argument type {meta_val}
+                for **meta_key** '{meta_key}'.
+                Expected Union[str, List[str], FunctionType],
                 got {type(meta_val)} instead.
             """
             raise TypeError(msg)
