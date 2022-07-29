@@ -4,7 +4,7 @@ on:
   release:
     types: [published]
 env:
-  PACKAGE_DIR: adbdpyg_adapter
+  PACKAGE_DIR: adbpyg_adapter
   TESTS_DIR: tests
 jobs:
   build:
