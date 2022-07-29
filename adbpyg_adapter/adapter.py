@@ -151,7 +151,6 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             "edgeCollections": {
                 "Ratings": {
                     "edge_weight": "Rating"
-                    }
                 }
             },
         }
@@ -618,7 +617,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
             return user_defined_result
 
-        raise ADBMetagraphError(f"Invalid {meta_val} type") # pragma: no cover
+        raise ADBMetagraphError(f"Invalid {meta_val} type")  # pragma: no cover
 
     def __build_dataframe_from_tensor(
         self,
@@ -660,4 +659,4 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
             return user_defined_result
 
-        raise PyGMetagraphError(f"Invalid {meta_val} type") # pragma: no cover
+        raise PyGMetagraphError(f"Invalid {meta_val} type")  # pragma: no cover

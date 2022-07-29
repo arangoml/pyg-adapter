@@ -66,9 +66,10 @@ data = FakeHeteroDataset(
 db = ArangoClient(hosts="http://localhost:8529").db("_system", username="root", password="")
 
 adbpyg_adapter = ADBPyG_Adapter(db)
+```
 
-############################### PyG to ArangoDB ###############################
-
+### PyG to ArangoDB
+```py
 # 1.1: PyG to ArangoDB
 adb_g = adbpyg_adapter.pyg_to_arangodb("FakeData", data)
 
@@ -137,9 +138,10 @@ class Custom_ADBPyG_Controller(ADBPyG_Controller):
 
 
 adb_g = ADBPyG_Adapter(db, Custom_ADBPyG_Controller()).pyg_to_arangodb("FakeData", data)
+```
 
-############################### ArangoDB to PyG ###############################
-
+### ArangoDB to PyG
+```py
 # Start from scratch!
 adbpyg_adapter.pyg_to_arangodb("FakeData", data, overwrite_graph=True, on_duplicate="replace")
 
@@ -183,7 +185,6 @@ metagraph_v2 = {
     "edgeCollections": {
         "Ratings": {
             "edge_weight": "Rating"
-            }
         }
     },
 }
