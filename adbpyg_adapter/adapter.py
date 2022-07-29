@@ -157,7 +157,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         }
 
         The metagraph above will build the "Movies" feature matrix 'x'
-        using the ArangoDB 'Action', 'Drama' & 'misc' attributes, by reling on
+        using the ArangoDB 'Action', 'Drama' & 'misc' attributes, by relying on
         the user-specified Encoders (see adbpyg_adapter.encoders for examples).
         NOTE: If the mapped value is `None`, then it assumes that the ArangoDB attribute
         value is a list containing numerical values only.
