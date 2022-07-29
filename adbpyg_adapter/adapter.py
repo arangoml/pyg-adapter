@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 import logging
 from collections import defaultdict
-from types import FunctionType
 from typing import Any, DefaultDict, Dict, List, Set, Union
 
 from arango.database import Database
@@ -15,7 +14,14 @@ from torch_geometric.typing import EdgeType
 
 from .abc import Abstract_ADBPyG_Adapter
 from .controller import ADBPyG_Controller
-from .typings import ADBMetagraph, Json, PyGEncoder, PyGMetagraph
+from .exceptions import ADBMetagraphError, PyGMetagraphError
+from .typings import (
+    ADBMetagraph,
+    ADBMetagraphValues,
+    Json,
+    PyGMetagraph,
+    PyGMetagraphValues,
+)
 from .utils import logger, progress, validate_adb_metagraph, validate_pyg_metagraph
 
 
@@ -80,7 +86,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :param metagraph: An object defining vertex & edge collections to import
             to PyG, along with collection-level specifications to indicate
             which ArangoDB attributes will become PyG features/labels.
-            See below for examples of **metagraph**
+            See below for examples of **metagraph**.
         :type metagraph: adbpyg_adapter.typings.ADBMetagraph
         :param query_options: Keyword arguments to specify AQL query options when
             fetching documents from the ArangoDB instance. Full parameter list:
@@ -88,10 +94,20 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :type query_options: Any
         :return: A PyG Data or HeteroData object
         :rtype: torch_geometric.data.Data | torch_geometric.data.HeteroData
-        :raise TypeError: If invalid metagraph
+        :raise adbpyg_adapter.exceptions.ADBMetagraphError: If invalid metagraph.
 
-        1) Here is an example entry for parameter **metagraph**:
+        The current supported **metagraph** values are:
+            1) str: The name of the ArangoDB attribute that stores your PyG-ready data
 
+            2) Dict[str, Callable[[pandas.DataFrame], torch.Tensor] | None]:
+                A dictionary mapping ArangoDB attributes to a callable Python Class
+                (i.e has a `__call__` function defined), or to None
+                (if the ArangoDB attribute is already a list of numerics).
+
+            3) Callable[[pandas.DataFrame], torch.Tensor]: A user-defined function for
+                custom behaviour. NOTE: The function return type MUST be a tensor.
+
+        1)
         .. code-block:: python
         {
             "vertexCollections": {
@@ -106,44 +122,48 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         }
 
         The metagraph above specifies that each document
-        within the "v0" collection has a "pre-built" feature matrix
+        within the "v0" ArangoDB collection has a "pre-built" feature matrix
         named "v0_features", and also has a node label named "label".
         We map these keys to the "x" and "y" properties of a standard
         PyG graph.
 
-        2) Here is another example entry for parameter **metagraph**:
+        2)
         .. code-block:: python
+        from adbpyg_adapter.encoders import IdentityEncoder, CategoricalEncoder
+
         {
             "vertexCollections": {
                 "Movies": {
                     "x": {
-                        "movie title": SequenceEncoder(),
-                        "Action": IdentityEncoder(),
-                    }
+                        "Action": IdentityEncoder(dtype=torch.long),
+                        "Drama": IdentityEncoder(dtype=torch.long),
+                        'Misc': None
+                    },
+                    "y": "Comedy",
                 },
                 "Users": {
                     "x": {
                         "Gender": CategoricalEncoder(),
-                        "Age": IdentityEncoder(dtype=long),
+                        "Age": IdentityEncoder(dtype=torch.long),
                     }
                 },
             },
             "edgeCollections": {
                 "Ratings": {
-                    "edge_weight": {
-                        "Rating": IdentityEncoder(dtype=long),
+                    "edge_weight": "Rating"
                     }
                 }
             },
         }
 
         The metagraph above will build the "Movies" feature matrix 'x'
-        using the 'movie title' & 'Action' attributes, by reling on
+        using the ArangoDB 'Action', 'Drama' & 'misc' attributes, by reling on
         the user-specified Encoders (see adbpyg_adapter.encoders for examples).
+        NOTE: If the mapped value is `None`, then it assumes that the ArangoDB attribute
+        value is a list containing numerical values only.
 
-        3) Here is a final example for parameter **metagraph**:
+        3)
         .. code-block:: python
-
         def udf_v0_x(v0_df):
             # process v0_df here to return v0 "x" feature matrix
             # ...
@@ -244,7 +264,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :type query_options: Any
         :return: A PyG Data or HeteroData object
         :rtype: torch_geometric.data.Data | torch_geometric.data.HeteroData
-        :raise TypeError: If invalid metagraph
+        :raise adbpyg_adapter.exceptions.ADBMetagraphError: If invalid metagraph.
         """
         metagraph: ADBMetagraph = {
             "vertexCollections": {col: dict() for col in v_cols},
@@ -265,7 +285,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :type query_options: Any
         :return: A PyG Data or HeteroData object
         :rtype: torch_geometric.data.Data | torch_geometric.data.HeteroData
-        :raise TypeError: If invalid metagraph
+        :raise adbpyg_adapter.exceptions.ADBMetagraphError: If invalid metagraph.
         """
         graph = self.__db.graph(name)
         v_cols = graph.vertex_collections()
@@ -306,8 +326,16 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :type import_options: Any
         :return: The ArangoDB Graph API wrapper.
         :rtype: arango.graph.Graph
-        :raise TypeError: If invalid metagraph
+        :raise adbpyg_adapter.exceptions.PyGMetagraphError: If invalid metagraph.
 
+        The current supported **metagraph** values are:
+            1) str: The name of the ArangoDB attribute that will store your PyG data
+
+            2) List[str]: A list of ArangoDB attribute names that will break down
+                your tensor data to have one ArangoDB attribute per tensor value.
+
+            3) Callable[[torch.Tensor], pandas.DataFrame]: A user-defined function for
+                custom behaviour. NOTE: The function return type MUST be a DataFrame.
 
         1) Here is an example entry for parameter **metagraph**:
         .. code-block:: python
@@ -398,7 +426,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         e_meta = metagraph.get("edgeTypes", {})
         for e_type in edge_types:
             edge_data = pyg_g if is_homogeneous else pyg_g[e_type]
-            from_col, e_col, to_col = e_type
+            from_col, _, to_col = e_type
 
             columns = ["_from", "_to"]
             df = DataFrame(zip(*(edge_data.edge_index.tolist())), columns=columns)
@@ -545,7 +573,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         self,
         adb_df: DataFrame,
         meta_key: str,
-        meta_val: Union[str, Dict[str, PyGEncoder], FunctionType],
+        meta_val: ADBMetagraphValues,
     ) -> Tensor:
         """Constructs a PyG-ready Tensor from a Pandas Dataframe, based on
         the nature of the user-defined metagraph.
@@ -557,20 +585,17 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :param meta_val: The value mapped to **meta_key** to
             help convert **df** into a PyG-ready Tensor.
             e.g the value of `metagraph['vertexCollections']['users']['x']`.
-            The current accepted **meta_val** types are:
-            1) str: return the DataFrame's **meta_val** column values as a Tensor
-            2) dict: encode all `key` column values & concatenate as a Tensor
-            3) function: execute a user-defined function to return a Tensor
-        :type meta_val: str | dict | function
+        :type meta_val: adbpyg_adapter.typings.ADBMetagraphValues
         :return: A PyG-ready tensor equivalent to the dataframe
         :rtype: torch.Tensor
+        :raise adbpyg_adapter.exceptions.ADBMetagraphError: If invalid **meta_val**.
         """
         logger.debug(f"__build_tensor_from_dataframe(df, '{meta_key}', {meta_val})")
 
         if type(meta_val) is str:
             return tensor(adb_df[meta_val].to_list())
 
-        elif type(meta_val) is dict:
+        if type(meta_val) is dict:
             data = []
             for attr, encoder in meta_val.items():
                 if encoder is None:
@@ -579,29 +604,27 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                     data.append(encoder(adb_df[attr]))
                 else:
                     msg = f"Invalid encoder for ArangoDB attribute '{attr}': {encoder}"
-                    raise ValueError(msg)
+                    raise ADBMetagraphError(msg)
 
             return cat(data, dim=-1)
 
-        elif type(meta_val) is FunctionType:
+        if callable(meta_val):
             # **meta_val** is a user-defined that returns a tensor
-            user_defined_tensor: Tensor = meta_val(adb_df)
-            return user_defined_tensor
+            user_defined_result = meta_val(adb_df)
 
-        else:
-            msg = f"""
-                Invalid **meta_val** argument type {meta_val}
-                for **meta_key** '{meta_key}'.
-                Expected Union[str, Dict[str, PyGEncoder], FunctionType],
-                got {type(meta_val)} instead.
-            """
-            raise TypeError(msg)
+            if type(user_defined_result) is not Tensor:
+                msg = f"Invalid return type for function {meta_val} ('{meta_key}')"
+                raise ADBMetagraphError(msg)
+
+            return user_defined_result
+
+        raise ADBMetagraphError(f"Invalid {meta_val} type") # pragma: no cover
 
     def __build_dataframe_from_tensor(
         self,
         pyg_tensor: Tensor,
         meta_key: str,
-        meta_val: Union[str, List[str], FunctionType],
+        meta_val: PyGMetagraphValues,
     ) -> DataFrame:
         """Builds a Pandas DataFrame from PyG Tensor, based on
         the nature of the user-defined metagraph.
@@ -613,33 +636,28 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :param meta_val: The value mapped to the PyG-ArangoDB metagraph key to
             help convert **tensor** into a Pandas Dataframe.
             e.g the value of `metagraph['nodeTypes']['users']['x']`.
-            The current accepted **meta_val** types are:
-            1) str: return a 1-column DataFrame equivalent to the Tensor
-            2) list[str]: return an N-column DataFrame equivalent to the Tensor
-            3) func: return a DataFrame based on the Tensor via a user-defined function
-        :type meta_val: str | dict | function
-
+        :type meta_val: adbpyg_adapter.typings.PyGMetagraphValues
         :return: A Pandas DataFrame equivalent to the Tensor
         :rtype: pandas.DataFrame
+        :raise adbpyg_adapter.exceptions.PyGMetagraphError: If invalid **meta_val**.
         """
         logger.debug(f"__build_dataframe_from_tensor(df, '{meta_key}', {meta_val})")
 
         if type(meta_val) in [str, list]:
             columns = [meta_val] if type(meta_val) is str else meta_val
+
             df = DataFrame(columns=columns)
             df[meta_val] = pyg_tensor.tolist()
             return df
 
-        elif type(meta_val) is FunctionType:
+        if callable(meta_val):
             # **meta_val** is a user-defined function that returns a dataframe
-            user_defined_dataframe: DataFrame = meta_val(pyg_tensor)
-            return user_defined_dataframe
+            user_defined_result = meta_val(pyg_tensor)
 
-        else:
-            msg = f"""
-                Invalid **meta_val** argument type {meta_val}
-                for **meta_key** '{meta_key}'.
-                Expected Union[str, List[str], FunctionType],
-                got {type(meta_val)} instead.
-            """
-            raise TypeError(msg)
+            if type(user_defined_result) is not DataFrame:
+                msg = f"Invalid return type for function {meta_val} ('{meta_key}')"
+                raise PyGMetagraphError(msg)
+
+            return user_defined_result
+
+        raise PyGMetagraphError(f"Invalid {meta_val} type") # pragma: no cover

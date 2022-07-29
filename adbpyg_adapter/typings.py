@@ -1,12 +1,25 @@
-__all__ = ["Json", "ADBMetagraph", "PyGMetagraph"]
-
-from types import FunctionType
-from typing import Any, Dict, Tuple, Union
-
-Json = Dict[str, Any]
-PyGEncoder = object
-ADBMetagraph = Dict[
-    str, Dict[str, Dict[str, Union[str, Dict[str, PyGEncoder], FunctionType]]]
+__all__ = [
+    "Json",
+    "ADBMetagraph",
+    "ADBMetagraphValues",
+    "PyGMetagraph",
+    "PyGMetagraphValues",
 ]
 
-PyGMetagraph = Dict[str, Dict[Union[str, Tuple[str, str, str]], Any]]
+from typing import Any, Callable, Dict, List, Tuple, Union
+
+from pandas import DataFrame
+from torch import Tensor
+
+Json = Dict[str, Any]
+
+DataFrameToTensor = Callable[[DataFrame], Tensor]
+TensorToDataFrame = Callable[[Tensor], DataFrame]
+
+ADBEncoders = Dict[str, DataFrameToTensor]
+ADBMetagraphValues = Union[str, DataFrameToTensor, ADBEncoders]
+ADBMetagraph = Dict[str, Dict[str, Dict[str, ADBMetagraphValues]]]
+
+PyGDataTypes = Union[str, Tuple[str, str, str]]
+PyGMetagraphValues = Union[str, List[str], TensorToDataFrame]
+PyGMetagraph = Dict[str, Dict[PyGDataTypes, Dict[Any, PyGMetagraphValues]]]

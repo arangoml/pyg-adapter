@@ -5,6 +5,8 @@ from typing import Any, Dict
 
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
+from .exceptions import ADBMetagraphError, PyGMetagraphError
+
 logger = logging.getLogger(__package__)
 handler = logging.StreamHandler()
 formatter = logging.Formatter(
@@ -36,15 +38,16 @@ def validate_adb_metagraph(metagraph: Dict[Any, Dict[Any, Any]]) -> None:
     for parent_key in ["vertexCollections", "edgeCollections"]:
         for col, meta in metagraph.get(parent_key, {}).items():
             if type(col) != str:
-                raise TypeError(f"Invalid {parent_key} key: {col} must be str")
+                msg = f"Invalid {parent_key} sub-key type: {col} must be str"
+                raise ADBMetagraphError(msg)
 
             for meta_val in meta.values():
                 if type(meta_val) not in [str, dict, FunctionType]:
                     msg = f"""
-                        Invalid metagraph value type in {meta}:
+                        Invalid mapped value type in {meta}:
                         {meta_val} must be str | Dict[str, object] | FunctionType
                     """
-                    raise TypeError(msg)
+                    raise ADBMetagraphError(msg)
 
                 if type(meta_val) == dict:
                     for k, v in meta_val.items():
@@ -52,13 +55,13 @@ def validate_adb_metagraph(metagraph: Dict[Any, Dict[Any, Any]]) -> None:
                             msg = f"""
                                 Invalid ArangoDB attribute key type: {v} must be str
                             """
-                            raise TypeError(msg)
+                            raise ADBMetagraphError(msg)
 
                         if v is not None and not callable(v):
                             msg = f"""
                                 Invalid PyG Encoder type: {v} must be None | callable()
                             """
-                            raise TypeError(msg)
+                            raise ADBMetagraphError(msg)
 
 
 def validate_pyg_metagraph(metagraph: Dict[Any, Dict[Any, Any]]) -> None:
@@ -66,33 +69,34 @@ def validate_pyg_metagraph(metagraph: Dict[Any, Dict[Any, Any]]) -> None:
 
     for node_type in metagraph.get("nodeTypes", {}).keys():
         if type(node_type) != str:
-            msg = f"Invalid nodeTypes key: {node_type} is not str"
-            raise TypeError(msg)
+            msg = f"Invalid nodeTypes sub-key: {node_type} is not str"
+            raise PyGMetagraphError(msg)
 
     for edge_type in metagraph.get("edgeTypes", {}).keys():
         if type(edge_type) != tuple:
-            msg = f"Invalid edgeTypes key: {edge_type} must be Tuple[str, str, str]"
-            raise TypeError(msg)
+            msg = f"Invalid edgeTypes sub-key: {edge_type} must be Tuple[str, str, str]"
+            raise PyGMetagraphError(msg)
         else:
             for elem in edge_type:
                 if type(elem) != str:
-                    raise TypeError(f"{elem} in {edge_type} must be str")
+                    msg = f"{elem} in {edge_type} must be str"
+                    raise PyGMetagraphError(msg)
 
     for parent_key in ["nodeTypes", "edgeTypes"]:
         for meta in metagraph.get(parent_key, {}).values():
             for meta_val in meta.values():
                 if type(meta_val) not in [str, list, FunctionType]:
                     msg = f"""
-                        Invalid metagraph value type in {meta}:
+                        Invalid mapped value type in {meta}:
                         {meta_val} must be str | List[str] | FunctionType
                     """
-                    raise TypeError(msg)
+                    raise PyGMetagraphError(msg)
 
                 if type(meta_val) == list:
                     for v in meta_val:
                         if type(v) != str:
                             msg = f"""
-                                Invalid metagraph value type in {meta_val}:
+                                Invalid ArangoDB attribute key type:
                                 {v} must be str
                             """
-                            raise TypeError(msg)
+                            raise PyGMetagraphError(msg)
