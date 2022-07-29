@@ -601,7 +601,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                     data.append(tensor(adb_df[attr].to_list()))
                 elif callable(encoder):
                     data.append(encoder(adb_df[attr]))
-                else:
+                else:  # pragma: no cover
                     msg = f"Invalid encoder for ArangoDB attribute '{attr}': {encoder}"
                     raise ADBMetagraphError(msg)
 
@@ -611,7 +611,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             # **meta_val** is a user-defined that returns a tensor
             user_defined_result = meta_val(adb_df)
 
-            if type(user_defined_result) is not Tensor:
+            if type(user_defined_result) is not Tensor:  # pragma: no cover
                 msg = f"Invalid return type for function {meta_val} ('{meta_key}')"
                 raise ADBMetagraphError(msg)
 
@@ -653,7 +653,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             # **meta_val** is a user-defined function that returns a dataframe
             user_defined_result = meta_val(pyg_tensor)
 
-            if type(user_defined_result) is not DataFrame:
+            if type(user_defined_result) is not DataFrame:  # pragma: no cover
                 msg = f"Invalid return type for function {meta_val} ('{meta_key}')"
                 raise PyGMetagraphError(msg)
 

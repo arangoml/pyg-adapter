@@ -32,7 +32,7 @@ class ADBPyG_Controller(Abstract_ADBPyG_Controller):
         :return: The PyG Node object
         :rtype: Dict[str, Any]
         """
-        return pyg_node
+        return pyg_node  # pragma: no cover
 
     def _prepare_pyg_edge(self, pyg_edge: Json, edge_type: EdgeType) -> Json:
         """Prepare a PyG edge object before it gets inserted into its
@@ -51,4 +51,4 @@ class ADBPyG_Controller(Abstract_ADBPyG_Controller):
         :return: The PyG Edge object
         :rtype: Dict[str, Any]
         """
-        return pyg_edge
+        return pyg_edge  # pragma: no cover

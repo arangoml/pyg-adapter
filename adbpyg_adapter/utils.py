@@ -1,6 +1,5 @@
 import logging
 import os
-from types import FunctionType
 from typing import Any, Dict
 
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
@@ -35,6 +34,13 @@ def progress(
 def validate_adb_metagraph(metagraph: Dict[Any, Dict[Any, Any]]) -> None:
     meta: Dict[Any, Any]
 
+    if "edgeCollections" in metagraph and "vertexCollections" not in metagraph:
+        msg = """
+            Metagraph must have 'vertexCollections' if
+            'edgeCollections' is specified.
+        """
+        raise ADBMetagraphError(msg)
+
     for parent_key in ["vertexCollections", "edgeCollections"]:
         for col, meta in metagraph.get(parent_key, {}).items():
             if type(col) != str:
@@ -42,10 +48,10 @@ def validate_adb_metagraph(metagraph: Dict[Any, Dict[Any, Any]]) -> None:
                 raise ADBMetagraphError(msg)
 
             for meta_val in meta.values():
-                if type(meta_val) not in [str, dict, FunctionType]:
+                if type(meta_val) not in [str, dict] and not callable(meta_val):
                     msg = f"""
                         Invalid mapped value type in {meta}:
-                        {meta_val} must be str | Dict[str, object] | FunctionType
+                        {meta_val} must be str | Dict[str, None | Callable] | Callable
                     """
                     raise ADBMetagraphError(msg)
 
@@ -59,7 +65,7 @@ def validate_adb_metagraph(metagraph: Dict[Any, Dict[Any, Any]]) -> None:
 
                         if v is not None and not callable(v):
                             msg = f"""
-                                Invalid PyG Encoder type: {v} must be None | callable()
+                                Invalid PyG Encoder type: {v} must be None | Callable
                             """
                             raise ADBMetagraphError(msg)
 
@@ -85,10 +91,10 @@ def validate_pyg_metagraph(metagraph: Dict[Any, Dict[Any, Any]]) -> None:
     for parent_key in ["nodeTypes", "edgeTypes"]:
         for meta in metagraph.get(parent_key, {}).values():
             for meta_val in meta.values():
-                if type(meta_val) not in [str, list, FunctionType]:
+                if type(meta_val) not in [str, list] and not callable(meta_val):
                     msg = f"""
                         Invalid mapped value type in {meta}:
-                        {meta_val} must be str | List[str] | FunctionType
+                        {meta_val} must be str | List[str] | Callable
                     """
                     raise PyGMetagraphError(msg)
 

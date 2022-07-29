@@ -11,8 +11,10 @@ from pandas import DataFrame
 from torch import Tensor, tensor
 from torch_geometric.data import Data, HeteroData
 from torch_geometric.datasets import Amazon, FakeDataset, FakeHeteroDataset, KarateClub
+from torch_geometric.typing import EdgeType
 
 from adbpyg_adapter import ADBPyG_Adapter
+from adbpyg_adapter.controller import ADBPyG_Controller
 from adbpyg_adapter.typings import Json
 
 con: Json
@@ -130,3 +132,13 @@ def udf_key_df_to_tensor(key: str) -> Callable[[DataFrame], Tensor]:
         return tensor(df[key].to_list())
 
     return f
+
+
+class Custom_ADBPyG_Controller(ADBPyG_Controller):
+    def _prepare_pyg_node(self, pyg_node: Json, col: str) -> Json:
+        pyg_node["foo"] = "bar"
+        return pyg_node
+
+    def _prepare_pyg_edge(self, pyg_edge: Json, edge_type: EdgeType) -> Json:
+        pyg_edge["bar"] = "foo"
+        return pyg_edge

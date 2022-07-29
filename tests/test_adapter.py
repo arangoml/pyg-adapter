@@ -9,9 +9,12 @@ from torch_geometric.typing import EdgeType
 
 from adbpyg_adapter import ADBPyG_Adapter
 from adbpyg_adapter.encoders import CategoricalEncoder, IdentityEncoder
+from adbpyg_adapter.exceptions import ADBMetagraphError, PyGMetagraphError
 from adbpyg_adapter.typings import ADBMetagraph, PyGMetagraph
+from adbpyg_adapter.utils import validate_adb_metagraph, validate_pyg_metagraph
 
-from .conftest import (  # SequenceEncoder,
+from .conftest import (
+    Custom_ADBPyG_Controller,
     adbpyg_adapter,
     arango_restore,
     con,
@@ -38,6 +41,133 @@ def test_validate_constructor() -> None:
 
     with pytest.raises(TypeError):
         ADBPyG_Adapter(db, Bad_ADBPyG_Controller())  # type: ignore
+
+
+@pytest.mark.parametrize(
+    "bad_metagraph",
+    [
+        # missing required parent key
+        (
+            {
+                "edgeCollections": {},
+            }
+        ),
+        # bad collection name
+        (
+            {
+                "vertexCollections": {
+                    1: {},
+                    # other examples include:
+                    # True: {},
+                    # ('a'): {}
+                }
+            }
+        ),
+        # bad meta_val
+        (
+            {
+                "vertexCollections": {
+                    "vcol_a": {
+                        "x": True,
+                        # other example include:
+                        # 'x': ('a'),
+                        # 'x': ['a'],
+                        # 'x': 5
+                    }
+                }
+            }
+        ),
+        # bad meta_val encoder key
+        ({"vertexCollections": {"vcol_a": {"x": {1: IdentityEncoder()}}}}),
+        # bad meta_val encoder value
+        (
+            {
+                "vertexCollections": {
+                    "vcol_a": {
+                        "x": {
+                            "Action": True,
+                            # other examples include:
+                            # 'Action': {}
+                            # 'Action': (lambda : 1)()
+                        }
+                    }
+                }
+            }
+        ),
+    ],
+)
+def test_validate_adb_metagraph(bad_metagraph: Dict[Any, Any]) -> None:
+    with pytest.raises(ADBMetagraphError):
+        validate_adb_metagraph(bad_metagraph)
+
+
+@pytest.mark.parametrize(
+    "bad_metagraph",
+    [
+        # bad node type
+        (
+            {
+                "nodeTypes": {
+                    ("a", "b", "c"): {},
+                    # other examples include:
+                    # 1: {},
+                    # True: {}
+                }
+            }
+        ),
+        # bad edge type
+        (
+            {
+                "edgeTypes": {
+                    "b": {},
+                    # other examples include:
+                    # 1: {},
+                    # True: {}
+                }
+            }
+        ),
+        # bad edge type 2
+        (
+            {
+                "edgeTypes": {
+                    ("a", "b", 3): {},
+                    # other examples include:
+                    # 1: {},
+                    # True: {}
+                }
+            }
+        ),
+        # bad meta_val
+        (
+            {
+                "nodeTypes": {
+                    "ntype_a'": {
+                        "x": True,
+                        # other example include:
+                        # 'x': ('a'),
+                        # 'x': (lambda: 1)(),
+                    }
+                }
+            }
+        ),
+        # bad meta_val list
+        (
+            {
+                "nodeTypes": {
+                    "ntype_a'": {
+                        "x": ["a", 3],
+                        # other example include:
+                        # 'x': ('a'),
+                        # 'x': (lambda: 1)(),
+                    }
+                }
+            }
+        ),
+    ],
+)
+def test_validate_pyg_metagraph(bad_metagraph: Dict[Any, Any]) -> None:
+    with pytest.raises(PyGMetagraphError):
+        validate_pyg_metagraph(bad_metagraph)
 
 
 @pytest.mark.parametrize(
@@ -142,7 +272,7 @@ def test_validate_constructor() -> None:
             get_social_graph(),
             {"nodeTypes": {"user": {"x": ["age", "gender"]}}},
             False,
-            False,
+            True,
             {},
         ),
     ],
@@ -161,7 +291,25 @@ def test_pyg_to_adb(
         name, pyg_g, metagraph, explicit_metagraph, overwrite_graph, **import_options
     )
     assert_arangodb_data(name, pyg_g, adb_g, metagraph, explicit_metagraph)
+    db.delete_graph(name, drop_collections=True)
+
+
+def test_pyg_to_arangodb_with_controller() -> None:
+    name = "Karate_3"
+    data = get_karate_graph()
     db.delete_graph(name, drop_collections=True, ignore_missing=True)
+
+    ADBPyG_Adapter(db, Custom_ADBPyG_Controller()).pyg_to_arangodb(name, data)
+
+    for doc in db.collection(name + "_N"):
+        assert "foo" in doc
+        assert doc["foo"] == "bar"
+
+    for edge in db.collection(name + "_E"):
+        assert "bar" in edge
+        assert edge["bar"] == "foo"
+
+    db.delete_graph(name, drop_collections=True)
 
 
 @pytest.mark.parametrize(
@@ -257,7 +405,7 @@ def test_adb_to_pyg(
     assert_pyg_data(pyg_g_new, metagraph)
 
     if pyg_g_old:
-        db.delete_graph(name, drop_collections=True, ignore_missing=True)
+        db.delete_graph(name, drop_collections=True)
 
 
 @pytest.mark.parametrize(
@@ -297,7 +445,7 @@ def test_adb_collections_to_pyg(
     )
 
     if pyg_g_old:
-        db.delete_graph(name, drop_collections=True, ignore_missing=True)
+        db.delete_graph(name, drop_collections=True)
 
 
 @pytest.mark.parametrize(
@@ -335,7 +483,7 @@ def test_adb_graph_to_pyg(
     )
 
     if pyg_g_old:
-        db.delete_graph(name, drop_collections=True, ignore_missing=True)
+        db.delete_graph(name, drop_collections=True)
 
 
 def test_full_cycle_imdb() -> None:

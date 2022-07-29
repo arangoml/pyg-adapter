@@ -3,15 +3,7 @@ class ADBPyGError(Exception):
 
 
 class ADBPyGValidationError(ADBPyGError, TypeError):
-    """Base class for errors originating from adbpyg-adapter user input validation.
-
-    :param msg: Error message.
-    :type msg: str
-    """
-
-    def __init__(self, msg: str) -> None:
-        super().__init__(msg)
-        self.message = msg
+    """Base class for errors originating from adbpyg-adapter user input validation."""
 
 
 ##################
