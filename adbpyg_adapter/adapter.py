@@ -16,7 +16,7 @@ from torch_geometric.typing import EdgeType
 from .abc import Abstract_ADBPyG_Adapter
 from .controller import ADBPyG_Controller
 from .typings import ADBMetagraph, Json, PyGEncoder, PyGMetagraph
-from .utils import logger, progress
+from .utils import logger, progress, validate_adb_metagraph, validate_pyg_metagraph
 
 
 class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
@@ -26,12 +26,12 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
     :type db: arango.database.Database
     :param controller: The ArangoDB-PyG controller, used to prepare
         nodes & edges before ArangoDB insertion, optionally re-defined
-        by the user if needed (otherwise defaults to ADBPyG_Controller).
+        by the user if needed. Defaults to `ADBPyG_Controller`.
     :type controller: adbpyg_adapter.controller.ADBPyG_Controller
     :param logging_lvl: Defaults to logging.INFO. Other useful options are
         logging.DEBUG (more verbose), and logging.WARNING (less verbose).
     :type logging_lvl: str | int
-    :raise ValueError: If invalid parameters
+    :raise TypeError: If invalid parameter types
     """
 
     def __init__(
@@ -72,7 +72,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         metagraph: ADBMetagraph,
         **query_options: Any,
     ) -> Union[Data, HeteroData]:
-        """Create a PyG graph from the user-defined metagraph. DOES carry
+        """Create a PyG graph from ArangoDB data. DOES carry
             over node/edge features/labels, via the **metagraph**.
 
         :param name: The PyG graph name.
@@ -88,6 +88,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :type query_options: Any
         :return: A PyG Data or HeteroData object
         :rtype: torch_geometric.data.Data | torch_geometric.data.HeteroData
+        :raise TypeError: If invalid metagraph
 
         1) Here is an example entry for parameter **metagraph**:
 
@@ -136,9 +137,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             },
         }
 
-        The metagraph above will build the "Movies" feature matrix
+        The metagraph above will build the "Movies" feature matrix 'x'
         using the 'movie title' & 'Action' attributes, by reling on
-        the user-specified Encoders (see adbpyg_adapter.utils for examples).
+        the user-specified Encoders (see adbpyg_adapter.encoders for examples).
 
         3) Here is a final example for parameter **metagraph**:
         .. code-block:: python
@@ -172,6 +173,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         associated ArangoDB collection.
         """
         logger.debug(f"--arangodb_to_pyg('{name}')--")
+
+        validate_adb_metagraph(metagraph)
 
         is_homogeneous = (
             len(metagraph["vertexCollections"]) == 1
@@ -231,10 +234,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         :param name: The PyG graph name.
         :type name: str
-        :param v_cols: A set of ArangoDB vertex collections to
-            import to PyG.
+        :param v_cols: The set of ArangoDB vertex collections to import to PyG.
         :type v_cols: Set[str]
-        :param e_cols: A set of ArangoDB edge collections to import to PyG.
+        :param e_cols: The set of ArangoDB edge collections to import to PyG.
         :type e_cols: Set[str]
         :param query_options: Keyword arguments to specify AQL query options when
             fetching documents from the ArangoDB instance. Full parameter list:
@@ -242,6 +244,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :type query_options: Any
         :return: A PyG Data or HeteroData object
         :rtype: torch_geometric.data.Data | torch_geometric.data.HeteroData
+        :raise TypeError: If invalid metagraph
         """
         metagraph: ADBMetagraph = {
             "vertexCollections": {col: dict() for col in v_cols},
@@ -262,6 +265,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :type query_options: Any
         :return: A PyG Data or HeteroData object
         :rtype: torch_geometric.data.Data | torch_geometric.data.HeteroData
+        :raise TypeError: If invalid metagraph
         """
         graph = self.__db.graph(name)
         v_cols = graph.vertex_collections()
@@ -285,7 +289,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :param pyg_g: The existing PyG graph.
         :type pyg_g: Data | HeteroData
         :param metagraph: An optional object mapping the PyG keys of
-            the node & edge data to ArangoDB key strings or user-defined
+            the node & edge data to strings, list of strings, or user-defined
             functions. NOTE: Unlike the metagraph for ArangoDB to PyG, this
             one is optional. See below for an example of **metagraph**.
         :type metagraph: adbpyg_adapter.typings.PyGMetagraph
@@ -302,12 +306,16 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :type import_options: Any
         :return: The ArangoDB Graph API wrapper.
         :rtype: arango.graph.Graph
+        :raise TypeError: If invalid metagraph
 
 
         1) Here is an example entry for parameter **metagraph**:
         .. code-block:: python
 
         def v2_x_to_pandas_dataframe(t: Tensor):
+            # The parameter **t** is the tensor representing
+            # the feature matrix 'x' of the 'v2' node type.
+
             df = pandas.DataFrame(columns=["v2_features"])
             df["v2_features"] = t.tolist()
             # do more things with df["v2_features"] here ...
@@ -326,13 +334,15 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             },
         }
 
-        Using the metagraph above will set a custom ArangoDB attribute key for
-        the v0 "x" feature matrix ('v0_features'), and its "y" label ('label').
-        Furthemore, the v1 "x" feature matrix is broken down in order to
+        Using the metagraph above will store the v0 "x" feature matrix as
+        "v0_features" in ArangoDB, and store the v0 "y" label tensor as
+        "label". Furthemore, the v1 "x" feature matrix is broken down in order to
         associate one ArangoDB attribute per feature. Lastly, the v2 feature matrix
         is converted into a DataFrame via a user-defined function.
         """
         logger.debug(f"--pyg_to_arangodb('{name}')--")
+
+        validate_pyg_metagraph(metagraph)
 
         is_homogeneous = type(pyg_g) is Data
 
@@ -341,11 +351,6 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         if metagraph and explicit_metagraph:
             node_types = metagraph.get("nodeTypes", {}).keys()  # type: ignore
             edge_types = metagraph.get("edgeTypes", {}).keys()  # type: ignore
-
-            if not edge_types:
-                for n_type in node_types:
-                    if not self.__db.has_collection(n_type):
-                        self.__db.create_collection(n_type)
 
         elif is_homogeneous:
             n_type = name + "_N"
@@ -356,19 +361,18 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             node_types = pyg_g.node_types
             edge_types = pyg_g.edge_types
 
-        edge_definitions = self.etypes_to_edefinitions(edge_types)
-
         if overwrite_graph:
             logger.debug("Overwrite graph flag is True. Deleting old graph.")
             self.__db.delete_graph(name, ignore_missing=True)
 
-        adb_graph: ADBGraph
-        if not edge_definitions:
-            adb_graph = None
-        elif self.__db.has_graph(name):
+        if self.__db.has_graph(name):
             adb_graph = self.__db.graph(name)
         else:
-            adb_graph = self.__db.create_graph(name, edge_definitions)
+            edge_definitions = self.etypes_to_edefinitions(edge_types)
+            orphan_collections = self.ntypes_to_ocollections(node_types, edge_types)
+            adb_graph = self.__db.create_graph(
+                name, edge_definitions, orphan_collections
+            )
 
         # Define PyG data properties
         node_data: NodeStorage
@@ -460,6 +464,28 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         return edge_definitions
 
+    def ntypes_to_ocollections(
+        self, node_types: List[str], edge_types: List[EdgeType]
+    ) -> List[str]:
+        """Converts PyG node_types to ArangoDB orphan collections, if any.
+
+        :param node_types: A list of strings representing the PyG node types.
+        :type node_types: List[str]
+        :param edge_types: A list of string triplets (str, str, str) for
+            source node type, edge type and destination node type.
+        :type edge_types: List[torch_geometric.typing.EdgeType]
+        :return: ArangoDB Orphan Collections
+        :rtype: List[str]
+        """
+
+        non_orphan_collections = set()
+        for from_col, _, to_col in edge_types:
+            non_orphan_collections.add(from_col)
+            non_orphan_collections.add(to_col)
+
+        orphan_collections = set(node_types) ^ non_orphan_collections
+        return list(orphan_collections)
+
     def __fetch_adb_docs(self, col: str, query_options: Any) -> DataFrame:
         """Fetches ArangoDB documents within a collection. Returns the
             documents in a Pandas DataFrame.
@@ -478,7 +504,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         """
 
         with progress(
-            f"Export: {col}", text_style="#97C423", spinner_style="#7D3B04"
+            f"Export: {col}",
+            text_style="#97C423",
+            spinner_style="#7D3B04",
         ) as p:
             p.add_task("__fetch_adb_docs")
 
