@@ -74,6 +74,12 @@ adb_g = adbpyg_adapter.pyg_to_arangodb("FakeData", data)
 
 # 1.2: PyG to ArangoDB with a (completely optional) metagraph for customized adapter behaviour
 def y_tensor_to_2_column_dataframe(pyg_tensor):
+    """
+    A user-defined function to create two
+    ArangoDB attributes out of the 'y' label tensor
+
+    NOTE: user-defined functions must return a Pandas Dataframe
+    """
     label_map = {0: "Kiwi", 1: "Blueberry", 2: "Avocado"}
 
     df = pandas.DataFrame(columns=["label_num", "label_str"])

@@ -163,10 +163,6 @@ def test_pyg_to_adb(
     assert_arangodb_data(name, pyg_g, adb_g, metagraph, explicit_metagraph)
     db.delete_graph(name, drop_collections=True, ignore_missing=True)
 
-    if explicit_metagraph and "edgeTypes" not in metagraph:
-        for n_type in metagraph.get("nodeTypes", {}).keys():
-            db.delete_collection(n_type)
-
 
 @pytest.mark.parametrize(
     "adapter, name, metagraph, pyg_g_old",
