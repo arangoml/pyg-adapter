@@ -25,7 +25,9 @@ class Abstract_ADBPyG_Adapter(ABC):
     ) -> Union[Data, HeteroData]:
         raise NotImplementedError  # pragma: no cover
 
-    def arangodb_graph_to_pyg(self, name: str, **query_options: Any) -> Union[Data, HeteroData]:
+    def arangodb_graph_to_pyg(
+        self, name: str, **query_options: Any
+    ) -> Union[Data, HeteroData]:
         raise NotImplementedError  # pragma: no cover
 
     def pyg_to_arangodb(
@@ -41,8 +43,10 @@ class Abstract_ADBPyG_Adapter(ABC):
 
     def etypes_to_edefinitions(self, edge_types: List[EdgeType]) -> List[Json]:
         raise NotImplementedError  # pragma: no cover
-    
-    def ntypes_to_ocollections(self, node_types: List[str], edge_types: List[EdgeType]) -> List[str]:
+
+    def ntypes_to_ocollections(
+        self, node_types: List[str], edge_types: List[EdgeType]
+    ) -> List[str]:
         raise NotImplementedError  # pragma: no cover
 
     def __fetch_adb_docs(self) -> None:
