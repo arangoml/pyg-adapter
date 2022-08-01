@@ -29,10 +29,6 @@ jobs:
     name: Python ${{ matrix.python }}
     steps:
       - uses: actions/checkout@v2
-      - name: Setup Python ${{ matrix.python }}
-        uses: actions/setup-python@v2
-        with:
-          python-version: ${{ matrix.python }}
       - name: Set up pip & install packages
         run: |
           source ~/anaconda3/etc/profile.d/conda.sh
@@ -41,20 +37,20 @@ jobs:
           pip install torch
           pip install .[dev]
       - name: Run black
-        run: black --check --verbose --diff --color ${{env.PACKAGE_DIR}} ${{env.TESTS_DIR}}
+        run: conda run -n ${{ matrix.python }} black --check --verbose --diff --color ${{env.PACKAGE_DIR}} ${{env.TESTS_DIR}}
       - name: Run flake8
         run: flake8 ${{env.PACKAGE_DIR}} ${{env.TESTS_DIR}}
       - name: Run isort
         run: isort --check --profile=black ${{env.PACKAGE_DIR}} ${{env.TESTS_DIR}}
       - name: Run mypy
-        run: mypy ${{env.PACKAGE_DIR}} ${{env.TESTS_DIR}}
-      - name: Run pytest
-        run: pytest --dbName ${{ matrix.DB_NAME }} --cov=${{env.PACKAGE_DIR}} --cov-report xml --cov-report term-missing -v --color=yes --no-cov-on-fail --code-highlight=yes
+        run: conda run -n ${{ matrix.python }} mypy ${{env.PACKAGE_DIR}} ${{env.TESTS_DIR}}
+      - name: Run pytest in conda env
+        run: conda run -n ${{ matrix.python }} pytest --dbName ${{ matrix.DB_NAME }} --cov=${{env.PACKAGE_DIR}} --cov-report xml --cov-report term-missing -v --color=yes --no-cov-on-fail --code-highlight=yes
       - name: Publish to coveralls.io
         if: matrix.python == '3.8'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: coveralls --service=github
+        run: conda run -n ${{ matrix.python }} coveralls --service=github
 
   release:
     needs: build
@@ -69,11 +65,6 @@ jobs:
       - name: Fetch complete history for all tags and branches
         run: git fetch --prune --unshallow
 
-      - name: Setup python
-        uses: actions/setup-python@v2
-        with:
-          python-version: "3.8"
-
       - name: Install packages
         run: |
           source ~/anaconda3/etc/profile.d/conda.sh
@@ -83,18 +74,18 @@ jobs:
           pip install .[dev]
 
       - name: Build distribution
-        run: python setup.py sdist bdist_wheel
+        run: conda run -n ${{ matrix.python }} python setup.py sdist bdist_wheel
 
       - name: Publish to Test PyPi
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD_TEST }}
-        run: twine upload --repository testpypi dist/* #--skip-existing
+        run: conda run -n ${{ matrix.python }} twine upload --repository testpypi dist/* #--skip-existing
       - name: Publish to PyPi
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
-        run: twine upload --repository pypi dist/* #--skip-existing
+        run: conda run -n ${{ matrix.python }} twine upload --repository pypi dist/* #--skip-existing
 
   changelog:
     needs: release
