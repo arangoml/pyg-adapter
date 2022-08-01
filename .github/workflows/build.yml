@@ -31,10 +31,6 @@ jobs:
     name: Python ${{ matrix.python }}
     steps:
       - uses: actions/checkout@v2
-      # - name: Setup Python ${{ matrix.python }}
-      #   uses: actions/setup-python@v2
-      #   with:
-      #     python-version: ${{ matrix.python }}
       - name: Set up pip & install packages
         run: |
           source ~/anaconda3/etc/profile.d/conda.sh
@@ -43,11 +39,7 @@ jobs:
           pip install torch
           pip install .[dev]
       - name: Run black
-        run: |
-          source ~/anaconda3/etc/profile.d/conda.sh
-          conda activate ${{ matrix.python }}
-          black --version
-          black --check --verbose --diff --color ${{env.PACKAGE_DIR}} ${{env.TESTS_DIR}}
+        run: black --check --verbose --diff --color ${{env.PACKAGE_DIR}} ${{env.TESTS_DIR}}
       - name: Run flake8
         run: flake8 ${{env.PACKAGE_DIR}} ${{env.TESTS_DIR}}
       - name: Run isort
