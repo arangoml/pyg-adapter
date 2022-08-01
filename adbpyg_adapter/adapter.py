@@ -215,7 +215,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             for k, v in meta.items():
                 node_data[k] = self.__build_tensor_from_dataframe(df, k, v)
 
-        for e_col, meta in metagraph["edgeCollections"].items():
+        v_cols: List[str] = list(metagraph["vertexCollections"].keys())
+        for e_col, meta in metagraph.get("edgeCollections", {}).items():
             logger.debug(f"Preparing '{e_col}' edges")
 
             df = self.__fetch_adb_docs(e_col, query_options)
@@ -226,6 +227,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 df[["from_col", "to_col"]].value_counts().items()
             ):
                 edge_type = (from_col, e_col, to_col)
+                if from_col not in v_cols or to_col not in v_cols:
+                    logger.debug(f"Skipping {edge_type}")
+                    continue
+
                 logger.debug(f"Preparing {count} '{edge_type}' edges")
 
                 # Get the edge data corresponding to the current edge type
@@ -247,7 +252,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         v_cols: Set[str],
         e_cols: Set[str],
         **query_options: Any,
-    ) -> HeteroData:
+    ) -> Union[Data, HeteroData]:
         """Create a PyG graph from ArangoDB collections. Due to risk of
             ambiguity, this method DOES NOT transfer ArangoDB attributes to PyG.
 
@@ -272,7 +277,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         return self.arangodb_to_pyg(name, metagraph, **query_options)
 
-    def arangodb_graph_to_pyg(self, name: str, **query_options: Any) -> HeteroData:
+    def arangodb_graph_to_pyg(
+        self, name: str, **query_options: Any
+    ) -> Union[Data, HeteroData]:
         """Create a PyG graph from an ArangoDB graph. Due to risk of
             ambiguity, this method DOES NOT transfer ArangoDB attributes to PyG.
 
