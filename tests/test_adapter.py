@@ -356,19 +356,19 @@ def test_pyg_to_arangodb_with_controller() -> None:
             },
             get_fake_hetero_graph(avg_num_nodes=2, edge_dim=2),
         ),
-        (
-            adbpyg_adapter,
-            "HeterogeneousPartialEdgeCollectionImport",
-            {
-                "vertexCollections": {
-                    "v0": {"x": "x", "y": "y"},
-                },
-                "edgeCollections": {
-                    "e0": {"edge_attr": "edge_attr"},
-                },
-            },
-            get_fake_hetero_graph(avg_num_nodes=2, edge_dim=2),
-        ),
+        # (
+        #     adbpyg_adapter,
+        #     "HeterogeneousPartialEdgeCollectionImport",
+        #     {
+        #         "vertexCollections": {
+        #             "v0": {"x": "x", "y": "y"},
+        #         },
+        #         "edgeCollections": {
+        #             "e0": {"edge_attr": "edge_attr"},
+        #         },
+        #     },
+        #     get_fake_hetero_graph(avg_num_nodes=2, edge_dim=2),
+        # ),
         (
             adbpyg_adapter,
             "HeterogeneousOverComplicatedMetagraph",
