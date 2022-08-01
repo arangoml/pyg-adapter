@@ -53,8 +53,6 @@ def pytest_configure(config: Any) -> None:
     db = ArangoClient(hosts=con["url"], http_client=NoTimeoutHTTPClient()).db(
         con["dbName"], con["username"], con["password"], verify=True
     )
-    if db.has_database("py310") is False:
-        db.create_database("py310")
 
     global adbpyg_adapter
     adbpyg_adapter = ADBPyG_Adapter(db, logging_lvl=logging.DEBUG)
