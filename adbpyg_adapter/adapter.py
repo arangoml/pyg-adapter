@@ -208,7 +208,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         for v_col, meta in metagraph["vertexCollections"].items():
             logger.debug(f"Preparing '{v_col}' vertices")
 
-            df = self.__fetch_adb_docs(v_col, meta, query_options)
+            df = self.__fetch_adb_docs(v_col, meta == {}, query_options)
             adb_map.update({adb_id: pyg_id for pyg_id, adb_id in enumerate(df["_id"])})
 
             node_data: NodeStorage = data if is_homogeneous else data[v_col]
@@ -219,7 +219,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         for e_col, meta in metagraph.get("edgeCollections", {}).items():
             logger.debug(f"Preparing '{e_col}' edges")
 
-            df = self.__fetch_adb_docs(e_col, meta, query_options)
+            df = self.__fetch_adb_docs(e_col, meta == {}, query_options)
             df["from_col"] = df["_from"].str.split("/").str[0]
             df["to_col"] = df["_to"].str.split("/").str[0]
 
@@ -441,6 +441,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
             meta = e_meta.get(e_type, {})
             for k, t in edge_data.items():
+                if k == "edge_index":
+                    continue
+
                 if type(t) is Tensor and len(t) == edge_data.num_edges:
                     v = meta.get(k, k)
                     df = df.join(self.__build_dataframe_from_tensor(t, k, v))
@@ -521,23 +524,24 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         return list(orphan_collections)
 
     def __fetch_adb_docs(
-        self, col: str, meta: Dict[str, ADBMetagraphValues], query_options: Any
+        self, col: str, empty_meta: bool, query_options: Any
     ) -> DataFrame:
         """Fetches ArangoDB documents within a collection. Returns the
             documents in a Pandas DataFrame.
 
         :param col: The ArangoDB collection.
         :type col: str
-        :param meta: The metagraph specification for **col**.
-        :type meta: Dict[str, ADBMetagraphValues]
+        :param empty_meta: Set to True if the metagraph specification
+            for **col** is empty.
+        :type empty_meta: bool
         :param query_options: Keyword arguments to specify AQL query options
             when fetching documents from the ArangoDB instance.
         :type query_options: Any
         :return: A Pandas DataFrame representing the ArangoDB documents.
         :rtype: pandas.DataFrame
         """
-        # Only return the entire document if **meta** is not empty
-        data = "doc" if meta else "{_id: doc._id, _from: doc._from, _to: doc._to}"
+        # Only return the entire document if **empty_meta** is False
+        data = "{_id: doc._id, _from: doc._from, _to: doc._to}" if empty_meta else "doc"
         aql = f"""
             FOR doc IN @@col
                 RETURN {data}
