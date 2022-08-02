@@ -13,8 +13,7 @@ from torch_geometric.data import Data, HeteroData
 from torch_geometric.datasets import Amazon, FakeDataset, FakeHeteroDataset, KarateClub
 from torch_geometric.typing import EdgeType
 
-from adbpyg_adapter import ADBPyG_Adapter
-from adbpyg_adapter.controller import ADBPyG_Controller
+from adbpyg_adapter import ADBPyG_Adapter, ADBPyG_Controller
 from adbpyg_adapter.typings import Json
 
 con: Json
@@ -86,20 +85,6 @@ def get_fake_hetero_graph(**params: Any) -> HeteroData:
     return FakeHeteroDataset(**params)[0]
 
 
-def udf_v2_x_tensor_to_df(t: Tensor) -> DataFrame:
-    df = DataFrame(columns=["x"])
-    df["x"] = t.tolist()
-    # do more things with df["v2_features"] here ...
-    return df
-
-
-def udf_users_x_tensor_to_df(t: Tensor) -> DataFrame:
-    df = DataFrame(columns=["age", "gender"])
-    df[["age", "gender"]] = t.tolist()
-    df["gender"] = df["gender"].map({0: "Male", 1: "Female"})
-    return df
-
-
 # Arguably too large for testing purposes
 def get_amazon_photos_graph() -> Data:
     path = f"{PROJECT_DIR}/tests/data/pyg"
@@ -121,6 +106,22 @@ def get_social_graph() -> HeteroData:
     return data
 
 
+# For PyG to ArangoDB testing purposes
+def udf_v2_x_tensor_to_df(t: Tensor) -> DataFrame:
+    df = DataFrame(columns=["x"])
+    df["x"] = t.tolist()
+    # do more things with df["v2_features"] here ...
+    return df
+
+
+# For PyG to ArangoDB testing purposes
+def udf_users_x_tensor_to_df(t: Tensor) -> DataFrame:
+    df = DataFrame(columns=["age", "gender"])
+    df[["age", "gender"]] = t.tolist()
+    df["gender"] = df["gender"].map({0: "Male", 1: "Female"})
+    return df
+
+
 # For ArangoDB to PyG testing purposes
 def udf_x_df_to_tensor(df: DataFrame) -> Tensor:
     return tensor(df["x"].to_list())
@@ -135,7 +136,7 @@ def udf_key_df_to_tensor(key: str) -> Callable[[DataFrame], Tensor]:
 
 
 class Custom_ADBPyG_Controller(ADBPyG_Controller):
-    def _prepare_pyg_node(self, pyg_node: Json, col: str) -> Json:
+    def _prepare_pyg_node(self, pyg_node: Json, node_type: str) -> Json:
         pyg_node["foo"] = "bar"
         return pyg_node
 

@@ -41,31 +41,62 @@ def validate_adb_metagraph(metagraph: Dict[Any, Dict[Any, Any]]) -> None:
         """
         raise ADBMetagraphError(msg)
 
-    for parent_key in ["vertexCollections", "edgeCollections"]:
-        for col, meta in metagraph.get(parent_key, {}).items():
+    if "vertexCollections" not in metagraph:
+        raise ADBMetagraphError("Missing 'vertexCollections' key in metagraph")
+
+    parent_keys = ["vertexCollections"]
+    if "edgeCollections" in metagraph:
+        parent_keys.append("edgeCollections")
+
+    for parent_key in parent_keys:
+        sub_metagraph = metagraph[parent_key]
+        if not sub_metagraph or type(sub_metagraph) != dict:
+            raise ADBMetagraphError(f"{parent_key} must map to non-empty dictionary")
+
+        for col, meta in sub_metagraph.items():
             if type(col) != str:
-                msg = f"Invalid {parent_key} sub-key type: {col} must be str"
+                msg = f"""
+                    Invalid {parent_key} sub-key type:
+                    {col} must be str
+                """
                 raise ADBMetagraphError(msg)
 
-            for meta_val in meta.values():
+            if type(meta) != dict:
+                msg = f"""
+                    Invalid mapped value type for {col}:
+                    {meta} must be dict
+                """
+                raise ADBMetagraphError(msg)
+
+            for meta_key, meta_val in meta.items():
+                if type(meta_key) != str:
+                    msg = f"""
+                        Invalid key type in {meta}:
+                        {meta_key} must be str
+                    """
+                    raise ADBMetagraphError(msg)
+
                 if type(meta_val) not in [str, dict] and not callable(meta_val):
                     msg = f"""
                         Invalid mapped value type in {meta}:
                         {meta_val} must be str | Dict[str, None | Callable] | Callable
                     """
+
                     raise ADBMetagraphError(msg)
 
                 if type(meta_val) == dict:
                     for k, v in meta_val.items():
                         if type(k) != str:
                             msg = f"""
-                                Invalid ArangoDB attribute key type: {v} must be str
+                                Invalid ArangoDB attribute key type:
+                                {v} must be str
                             """
                             raise ADBMetagraphError(msg)
 
                         if v is not None and not callable(v):
                             msg = f"""
-                                Invalid PyG Encoder type: {v} must be None | Callable
+                                Invalid PyG Encoder type:
+                                {v} must be None | Callable
                             """
                             raise ADBMetagraphError(msg)
 
@@ -89,7 +120,11 @@ def validate_pyg_metagraph(metagraph: Dict[Any, Dict[Any, Any]]) -> None:
                     raise PyGMetagraphError(msg)
 
     for parent_key in ["nodeTypes", "edgeTypes"]:
-        for meta in metagraph.get(parent_key, {}).values():
+        for k, meta in metagraph.get(parent_key, {}).items():
+            if type(meta) != dict:
+                msg = f"Invalid mapped value type for {k}: {meta} must be dict"
+                raise PyGMetagraphError(msg)
+
             for meta_val in meta.values():
                 if type(meta_val) not in [str, list] and not callable(meta_val):
                     msg = f"""

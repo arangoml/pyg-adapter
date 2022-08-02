@@ -208,17 +208,18 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         for v_col, meta in metagraph["vertexCollections"].items():
             logger.debug(f"Preparing '{v_col}' vertices")
 
-            df = self.__fetch_adb_docs(v_col, query_options)
+            df = self.__fetch_adb_docs(v_col, meta == {}, query_options)
             adb_map.update({adb_id: pyg_id for pyg_id, adb_id in enumerate(df["_id"])})
 
             node_data: NodeStorage = data if is_homogeneous else data[v_col]
             for k, v in meta.items():
                 node_data[k] = self.__build_tensor_from_dataframe(df, k, v)
 
-        for e_col, meta in metagraph["edgeCollections"].items():
+        v_cols: List[str] = list(metagraph["vertexCollections"].keys())
+        for e_col, meta in metagraph.get("edgeCollections", {}).items():
             logger.debug(f"Preparing '{e_col}' edges")
 
-            df = self.__fetch_adb_docs(e_col, query_options)
+            df = self.__fetch_adb_docs(e_col, meta == {}, query_options)
             df["from_col"] = df["_from"].str.split("/").str[0]
             df["to_col"] = df["_to"].str.split("/").str[0]
 
@@ -226,6 +227,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 df[["from_col", "to_col"]].value_counts().items()
             ):
                 edge_type = (from_col, e_col, to_col)
+                if from_col not in v_cols or to_col not in v_cols:
+                    logger.debug(f"Skipping {edge_type}")
+                    continue  # partial edge collection import to pyg
+
                 logger.debug(f"Preparing {count} '{edge_type}' edges")
 
                 # Get the edge data corresponding to the current edge type
@@ -247,7 +252,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         v_cols: Set[str],
         e_cols: Set[str],
         **query_options: Any,
-    ) -> HeteroData:
+    ) -> Union[Data, HeteroData]:
         """Create a PyG graph from ArangoDB collections. Due to risk of
             ambiguity, this method DOES NOT transfer ArangoDB attributes to PyG.
 
@@ -272,7 +277,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         return self.arangodb_to_pyg(name, metagraph, **query_options)
 
-    def arangodb_graph_to_pyg(self, name: str, **query_options: Any) -> HeteroData:
+    def arangodb_graph_to_pyg(
+        self, name: str, **query_options: Any
+    ) -> Union[Data, HeteroData]:
         """Create a PyG graph from an ArangoDB graph. Due to risk of
             ambiguity, this method DOES NOT transfer ArangoDB attributes to PyG.
 
@@ -434,6 +441,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
             meta = e_meta.get(e_type, {})
             for k, t in edge_data.items():
+                if k == "edge_index":
+                    continue
+
                 if type(t) is Tensor and len(t) == edge_data.num_edges:
                     v = meta.get(k, k)
                     df = df.join(self.__build_dataframe_from_tensor(t, k, v))
@@ -513,21 +523,28 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         orphan_collections = set(node_types) ^ non_orphan_collections
         return list(orphan_collections)
 
-    def __fetch_adb_docs(self, col: str, query_options: Any) -> DataFrame:
+    def __fetch_adb_docs(
+        self, col: str, empty_meta: bool, query_options: Any
+    ) -> DataFrame:
         """Fetches ArangoDB documents within a collection. Returns the
             documents in a Pandas DataFrame.
 
         :param col: The ArangoDB collection.
         :type col: str
+        :param empty_meta: Set to True if the metagraph specification
+            for **col** is empty.
+        :type empty_meta: bool
         :param query_options: Keyword arguments to specify AQL query options
             when fetching documents from the ArangoDB instance.
         :type query_options: Any
         :return: A Pandas DataFrame representing the ArangoDB documents.
         :rtype: pandas.DataFrame
         """
-        aql = """
+        # Only return the entire document if **empty_meta** is False
+        data = "{_id: doc._id, _from: doc._from, _to: doc._to}" if empty_meta else "doc"
+        aql = f"""
             FOR doc IN @@col
-                RETURN doc
+                RETURN {data}
         """
 
         with progress(

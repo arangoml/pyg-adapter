@@ -45,13 +45,16 @@ def test_validate_constructor() -> None:
 
 @pytest.mark.parametrize(
     "bad_metagraph",
-    [
+    [  # empty metagraph
+        ({}),
         # missing required parent key
         (
             {
                 "edgeCollections": {},
             }
         ),
+        # empty sub-metagraph
+        ({"vertexCollections": {}}),
         # bad collection name
         (
             {
@@ -60,6 +63,30 @@ def test_validate_constructor() -> None:
                     # other examples include:
                     # True: {},
                     # ('a'): {}
+                }
+            }
+        ),
+        # bad collection metagraph
+        (
+            {
+                "vertexCollections": {
+                    "vcol_a": None,
+                    # other examples include:
+                    # "vcol_a": 1,
+                    # "vcol_a": 'foo',
+                }
+            }
+        ),
+        # bad meta_key
+        (
+            {
+                "vertexCollections": {
+                    "vcol_a": {
+                        1: {},
+                        # other example include:
+                        # True: {},
+                        # ("x"): {},
+                    }
                 }
             }
         ),
@@ -134,6 +161,17 @@ def test_validate_adb_metagraph(bad_metagraph: Dict[Any, Any]) -> None:
                     # other examples include:
                     # 1: {},
                     # True: {}
+                }
+            }
+        ),
+        # bad data type metagraph
+        (
+            {
+                "nodeTypes": {
+                    "ntype_a": None,
+                    # other examples include:
+                    # "ntype_a": 1,
+                    # "ntype_a": 'foo',
                 }
             }
         ),
@@ -358,7 +396,7 @@ def test_pyg_to_arangodb_with_controller() -> None:
         ),
         (
             adbpyg_adapter,
-            "HeterogeneousOverComplicated",
+            "HeterogeneousOverComplicatedMetagraph",
             {
                 "vertexCollections": {
                     "v0": {"x": {"x": None}, "y": {"y": None}},
@@ -373,7 +411,7 @@ def test_pyg_to_arangodb_with_controller() -> None:
         ),
         (
             adbpyg_adapter,
-            "HeterogeneousUDF",
+            "HeterogeneousUserDefinedFunctions",
             {
                 "vertexCollections": {
                     "v0": {
@@ -406,6 +444,69 @@ def test_adb_to_pyg(
 
     if pyg_g_old:
         db.delete_graph(name, drop_collections=True)
+
+
+def test_adb_partial_to_pyg() -> None:
+    # Generate a valid pyg_g graph
+    pyg_g = get_fake_hetero_graph(avg_num_nodes=2, edge_dim=2)
+    while ("v0", "e0", "v0") not in pyg_g.edge_types:
+        pyg_g = get_fake_hetero_graph(avg_num_nodes=2, edge_dim=2)
+
+    name = "Heterogeneous"
+    db.delete_graph(name, drop_collections=True, ignore_missing=True)
+    adbpyg_adapter.pyg_to_arangodb(name, pyg_g)
+
+    metagraph: ADBMetagraph
+
+    # Case 1: Partial edge collection import turns the graph homogeneous
+    metagraph = {
+        "vertexCollections": {
+            "v0": {"x": "x", "y": "y"},
+        },
+        "edgeCollections": {
+            "e0": {"edge_attr": "edge_attr"},
+        },
+    }
+
+    pyg_g_new = adbpyg_adapter.arangodb_to_pyg(
+        "HeterogeneousTurnedHomogeneous", metagraph
+    )
+
+    assert type(pyg_g_new) is Data
+    assert pyg_g["v0"].x.tolist() == pyg_g_new.x.tolist()
+    assert pyg_g["v0"].y.tolist() == pyg_g_new.y.tolist()
+    assert (
+        pyg_g[("v0", "e0", "v0")].edge_index.tolist() == pyg_g_new.edge_index.tolist()
+    )
+    assert pyg_g[("v0", "e0", "v0")].edge_attr.tolist() == pyg_g_new.edge_attr.tolist()
+
+    # Case 2: Partial edge collection import keeps the graph heterogeneous
+    metagraph = {
+        "vertexCollections": {
+            "v0": {"x": "x", "y": "y"},
+            "v1": {"x": "x"},
+        },
+        "edgeCollections": {
+            "e0": {"edge_attr": "edge_attr"},
+        },
+    }
+
+    pyg_g_new = adbpyg_adapter.arangodb_to_pyg(
+        "HeterogeneousWithOneLessNodeType", metagraph
+    )
+
+    assert type(pyg_g_new) is HeteroData
+    assert set(pyg_g_new.node_types) == {"v0", "v1"}
+    assert len(pyg_g_new.edge_types) >= 2
+    for n_type in pyg_g_new.node_types:
+        for k, v in pyg_g_new[n_type].items():
+            assert v.tolist() == pyg_g[n_type][k].tolist()
+
+    for e_type in pyg_g_new.edge_types:
+        for k, v in pyg_g_new[e_type].items():
+            assert v.tolist() == pyg_g[e_type][k].tolist()
+
+    db.delete_graph(name, drop_collections=True)
 
 
 @pytest.mark.parametrize(
@@ -451,7 +552,7 @@ def test_adb_collections_to_pyg(
 @pytest.mark.parametrize(
     "adapter, name, pyg_g_old",
     [
-        (adbpyg_adapter, "FakeHeterogeneous", get_fake_hetero_graph(avg_num_nodes=2)),
+        (adbpyg_adapter, "Heterogeneous", get_fake_hetero_graph(avg_num_nodes=2)),
     ],
 )
 def test_adb_graph_to_pyg(
@@ -704,7 +805,7 @@ def assert_pyg_data(pyg_g: Union[Data, HeteroData], metagraph: ADBMetagraph) -> 
     # Maps ArangoDB IDs to PyG IDs
     adb_map = dict()
 
-    y_val: Any  # ignore this for now
+    y_val: Any
     for v_col, meta in metagraph["vertexCollections"].items():
         node_data: NodeStorage = pyg_g if is_homogeneous else pyg_g[v_col]
         num_nodes = node_data.num_nodes

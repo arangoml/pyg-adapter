@@ -17,15 +17,17 @@ class Abstract_ADBPyG_Adapter(ABC):
 
     def arangodb_to_pyg(
         self, name: str, metagraph: ADBMetagraph, **query_options: Any
-    ) -> HeteroData:
+    ) -> Union[Data, HeteroData]:
         raise NotImplementedError  # pragma: no cover
 
     def arangodb_collections_to_pyg(
         self, name: str, v_cols: Set[str], e_cols: Set[str], **query_options: Any
-    ) -> HeteroData:
+    ) -> Union[Data, HeteroData]:
         raise NotImplementedError  # pragma: no cover
 
-    def arangodb_graph_to_pyg(self, name: str, **query_options: Any) -> HeteroData:
+    def arangodb_graph_to_pyg(
+        self, name: str, **query_options: Any
+    ) -> Union[Data, HeteroData]:
         raise NotImplementedError  # pragma: no cover
 
     def pyg_to_arangodb(
@@ -42,7 +44,15 @@ class Abstract_ADBPyG_Adapter(ABC):
     def etypes_to_edefinitions(self, edge_types: List[EdgeType]) -> List[Json]:
         raise NotImplementedError  # pragma: no cover
 
+    def ntypes_to_ocollections(
+        self, node_types: List[str], edge_types: List[EdgeType]
+    ) -> List[str]:
+        raise NotImplementedError  # pragma: no cover
+
     def __fetch_adb_docs(self) -> None:
+        raise NotImplementedError  # pragma: no cover
+
+    def __insert_adb_docs(self) -> None:
         raise NotImplementedError  # pragma: no cover
 
     def __build_tensor_from_dataframe(self) -> None:
@@ -51,13 +61,10 @@ class Abstract_ADBPyG_Adapter(ABC):
     def __build_dataframe_from_tensor(self) -> None:
         raise NotImplementedError  # pragma: no cover
 
-    def __insert_adb_docs(self) -> None:
-        raise NotImplementedError  # pragma: no cover
-
 
 class Abstract_ADBPyG_Controller(ABC):
-    def _prepare_pyg_node(self, pyg_node: Json, col: str) -> Json:
+    def _prepare_pyg_node(self, pyg_node: Json, node_type: str) -> Json:
         raise NotImplementedError  # pragma: no cover
 
-    def _prepare_pyg_edge(self, pyg_edge: Json, col: str) -> Json:
+    def _prepare_pyg_edge(self, pyg_edge: Json, edge_type: EdgeType) -> Json:
         raise NotImplementedError  # pragma: no cover
