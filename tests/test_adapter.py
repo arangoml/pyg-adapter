@@ -45,10 +45,8 @@ def test_validate_constructor() -> None:
 
 @pytest.mark.parametrize(
     "bad_metagraph",
-    [   # empty metagraph
-        (
-            {}
-        ),
+    [  # empty metagraph
+        ({}),
         # missing required parent key
         (
             {
@@ -56,9 +54,7 @@ def test_validate_constructor() -> None:
             }
         ),
         # empty sub-metagraph
-        (
-            {"vertexCollections": {}}
-        ),
+        ({"vertexCollections": {}}),
         # bad collection name
         (
             {
