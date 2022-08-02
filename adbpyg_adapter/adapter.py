@@ -441,6 +441,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
             meta = e_meta.get(e_type, {})
             for k, t in edge_data.items():
+                if k == "edge_index":
+                    continue                    
+
                 if type(t) is Tensor and len(t) == edge_data.num_edges:
                     v = meta.get(k, k)
                     df = df.join(self.__build_dataframe_from_tensor(t, k, v))
