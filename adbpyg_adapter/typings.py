@@ -4,9 +4,11 @@ __all__ = [
     "ADBMetagraphValues",
     "PyGMetagraph",
     "PyGMetagraphValues",
+    "ADBMap",
+    "PyGMap",
 ]
 
-from typing import Any, Callable, Dict, List, Tuple, Union
+from typing import Any, Callable, DefaultDict, Dict, List, Tuple, Union
 
 from pandas import DataFrame
 from torch import Tensor
@@ -23,3 +25,6 @@ ADBMetagraph = Dict[str, Dict[str, Dict[str, ADBMetagraphValues]]]
 PyGDataTypes = Union[str, Tuple[str, str, str]]
 PyGMetagraphValues = Union[str, List[str], TensorToDataFrame]
 PyGMetagraph = Dict[str, Dict[PyGDataTypes, Dict[Any, PyGMetagraphValues]]]
+
+ADBMap = DefaultDict[str, DefaultDict[PyGDataTypes, Dict[str, int]]]
+PyGMap = DefaultDict[str, DefaultDict[PyGDataTypes, Dict[int, str]]]
