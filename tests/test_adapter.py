@@ -66,6 +66,30 @@ def test_validate_constructor() -> None:
                 }
             }
         ),
+        # bad collection metagraph
+        (
+            {
+                "vertexCollections": {
+                    "vcol_a": None,
+                    # other examples include:
+                    # "vcol_a": 1,
+                    # "vcol_a": 'foo',
+                }
+            }
+        ),
+        # bad meta_key
+        (
+            {
+                "vertexCollections": {
+                    "vcol_a": {
+                        1: {},
+                        # other example include:
+                        # True: {},
+                        # ("x"): {},
+                    }
+                }
+            }
+        ),
         # bad meta_val
         (
             {
@@ -137,6 +161,17 @@ def test_validate_adb_metagraph(bad_metagraph: Dict[Any, Any]) -> None:
                     # other examples include:
                     # 1: {},
                     # True: {}
+                }
+            }
+        ),
+        # bad data type metagraph
+        (
+            {
+                "nodeTypes": {
+                    "ntype_a": None,
+                    # other examples include:
+                    # "ntype_a": 1,
+                    # "ntype_a": 'foo',
                 }
             }
         ),
