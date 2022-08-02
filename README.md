@@ -115,11 +115,11 @@ adb_g = adbpyg_adapter.pyg_to_arangodb("FakeData", data, metagraph, explicit_met
 
 # 1.4: PyG to ArangoDB with a Custom Controller  (more user-defined behavior)
 class Custom_ADBPyG_Controller(ADBPyG_Controller):
-    def _prepare_pyg_node(self, pyg_node: dict, col: str) -> dict:
+    def _prepare_pyg_node(self, pyg_node: dict, node_type: str) -> dict:
         """Optionally modify a PyG node object before it gets inserted into its designated ArangoDB collection.
 
         :param pyg_node: The PyG node object to (optionally) modify.
-        :param col: The ArangoDB collection the PyG node belongs to.
+        :param node_type: The PyG Node Type of the node.
         :return: The PyG Node object
         """
         pyg_node["foo"] = "bar"
