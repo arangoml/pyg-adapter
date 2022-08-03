@@ -488,12 +488,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 df["_key"] = df.index.astype(str)
 
             meta = n_meta.get(n_type, {})
-            pyg_keys = list(  # TODO: this shouldn't be this complicated...
-                meta.keys()
+            pyg_keys = (
+                set(meta.keys())
                 if explicit_metagraph
-                else node_data.keys
-                if is_homogeneous
-                else node_data.keys()
+                else {k for k, _ in node_data.items()}  # can't do node_data.keys()
             )
             df = self.__finish_adb_dataframe(df, meta, pyg_keys, node_data)
 
@@ -519,12 +517,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 df["_to"] = to_col + "/" + df["_to"].astype(str)
 
             meta = e_meta.get(e_type, {})
-            pyg_keys = list(  # TODO: this shouldn't be this complicated...
-                meta.keys()
+            pyg_keys = (
+                set(meta.keys())
                 if explicit_metagraph
-                else edge_data.keys
-                if is_homogeneous
-                else edge_data.keys()
+                else {k for k, _ in edge_data.items()}  # can't do edge_data.keys()
             )
             df = self.__finish_adb_dataframe(df, meta, pyg_keys, edge_data)
 
@@ -720,7 +716,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         self,
         df: DataFrame,
         meta: Dict[Any, PyGMetagraphValues],
-        pyg_keys: List[Any],
+        pyg_keys: Set[Any],
         pyg_data: Union[NodeStorage, EdgeStorage],
     ) -> DataFrame:
         """A helper method to complete the ArangoDB Dataframe for the given
@@ -736,7 +732,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :param pyg_keys: The set of PyG NodeStorage or EdgeStorage keys, retrieved
             either from the **meta** parameter (if **explicit_metagraph** is True),
             or from the **pyg_data** parameter (if **explicit_metagraph** is False).
-        :type pyg_keys: List[Any]
+        :type pyg_keys: Set[Any]
         :param pyg_data: The NodeStorage or EdgeStorage of the current
             PyG node or edge type.
         :type pyg_data: torch_geometric.data.storage.(NodeStorage | EdgeStorage)
