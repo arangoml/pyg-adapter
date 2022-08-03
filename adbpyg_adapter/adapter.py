@@ -345,6 +345,13 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :param overwrite_graph: Overwrites the graph if it already exists.
             Does not drop associated collections. Defaults to False.
         :type overwrite_graph: bool
+        :param preserve_adb_keys: NOTE: EXPERIMENTAL FEATURE. USE AT OWN RISK.
+            If True, relies on **adbpyg_adapter.adb_map[**name**]** to map the
+            PyG Node & Edge IDs back into ArangoDB Vertex & Edge IDs. Assumes that
+            the user has a valid ADB Map for **name**.
+            An ADB Map can be built by running an ArangoDB to PyG operation for
+            the same **name**, or by writing the map manually. Defaults to False.
+        :type preserve_adb_keys: bool
         :param import_options: Keyword arguments to specify additional
             parameters for ArangoDB document insertion. Full parameter list:
             https://docs.python-arango.com/en/main/specs.html#arango.collection.Collection.import_bulk
@@ -361,7 +368,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
             3) Callable[[torch.Tensor], (pandas | cudf).DataFrame]:
                 A user-defined function for custom behaviour.
-                NOTE: The function return type MUST be a DataFrame.
+                NOTE: The function return type MUST be a DataFrame (pandas or cudf).
 
         1) Here is an example entry for parameter **metagraph**:
         .. code-block:: python
