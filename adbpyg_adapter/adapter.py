@@ -655,7 +655,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         try:
             docs = df.to_dict("records")
         except TypeError:  # cudf does not support to_dict
-            docs = df.to_pandas.to_dict("records")
+            docs = df.to_pandas().to_dict("records")
 
         with progress(
             f"Import: {doc_type} ({len(docs)})",
