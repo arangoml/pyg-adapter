@@ -681,39 +681,39 @@ def assert_arangodb_data(
 
         assert collection.count() == num_nodes
 
-        # TODO: Remove str restriction
-        has_node_feature_matrix = "x" in node_data and type(meta.get("x", "x")) is str
-        has_node_target_label = (
-            num_nodes == len(node_data.get("y", [])) and type(meta.get("y", "y")) is str
-        )
+        # # TODO: Remove str restriction
+        # has_node_feature_matrix = "x" in node_data and type(meta.get("x", "x")) is str
+        # has_node_target_label = (
+        #     num_nodes == len(node_data.get("y", [])) and type(meta.get("y", "y")) is str
+        # )
 
-        for i in range(num_nodes):
-            vertex = collection.get(str(i))
-            assert vertex
+        # for i in range(num_nodes):
+        #     vertex = collection.get(str(i))
+        #     assert vertex
 
-            if has_node_feature_matrix:
-                meta_val = meta.get("x", "x")
-                assert meta_val in vertex
+        #     if has_node_feature_matrix:
+        #         meta_val = meta.get("x", "x")
+        #         assert meta_val in vertex
 
-                x = node_data.x[i]
-                assert x.tolist() == vertex[meta_val]
+        #         x = node_data.x[i]
+        #         assert x.tolist() == vertex[meta_val]
 
-            if has_node_target_label:
-                meta_val = meta.get("y", "y")
-                assert meta_val in vertex
+        #     if has_node_target_label:
+        #         meta_val = meta.get("y", "y")
+        #         assert meta_val in vertex
 
-                y = node_data.y[i]
-                y_val: Any
-                try:
-                    y_val = y.item()
-                except ValueError:
-                    y_val = y.tolist()
+        #         y = node_data.y[i]
+        #         y_val: Any
+        #         try:
+        #             y_val = y.item()
+        #         except ValueError:
+        #             y_val = y.tolist()
 
-                # TODO: remove this ugly hack
-                if type(vertex[meta_val]) is list:
-                    assert [y_val] == vertex[meta_val]
-                else:
-                    assert y_val == vertex[meta_val]
+        #         # TODO: remove this ugly hack
+        #         if type(vertex[meta_val]) is list:
+        #             assert [y_val] == vertex[meta_val]
+        #         else:
+        #             assert y_val == vertex[meta_val]
 
     edge_weight: Tensor
     edge_attr: Tensor
@@ -735,16 +735,16 @@ def assert_arangodb_data(
             continue
 
         # TODO: Remove str restriction
-        has_edge_weight_list = (
-            "edge_weight" in edge_data
-            and type(meta.get("edge_weight", "edge_weight")) is str
-        )
-        has_edge_feature_matrix = (
-            "edge_attr" in edge_data and type(meta.get("edge_attr", "edge_attr")) is str
-        )
-        has_edge_target_label = (
-            num_edges == len(edge_data.get("y", [])) and type(meta.get("y", "y")) is str
-        )
+        # has_edge_weight_list = (
+        #     "edge_weight" in edge_data
+        #     and type(meta.get("edge_weight", "edge_weight")) is str
+        # )
+        # has_edge_feature_matrix = (
+        #     "edge_attr" in edge_data and type(meta.get("edge_attr", "edge_attr")) is str
+        # )
+        # has_edge_target_label = (
+        #     num_edges == len(edge_data.get("y", [])) and type(meta.get("y", "y")) is str
+        # )
 
         for i, (from_n, to_n) in enumerate(zip(*(edge_data.edge_index.tolist()))):
             edge = collection.find(
@@ -756,35 +756,35 @@ def assert_arangodb_data(
 
             assert edge
 
-            if has_edge_weight_list:
-                meta_val = meta.get("edge_weight", "edge_weight")
-                assert meta_val in edge
+            # if has_edge_weight_list:
+            #     meta_val = meta.get("edge_weight", "edge_weight")
+            #     assert meta_val in edge
 
-                edge_weight = edge_data.edge_weight[i]
-                assert edge_weight.item() == edge[meta_val]
+            #     edge_weight = edge_data.edge_weight[i]
+            #     assert edge_weight.item() == edge[meta_val]
 
-            if has_edge_feature_matrix:
-                meta_val = meta.get("edge_attr", "edge_attr")
-                assert meta_val in edge
+            # if has_edge_feature_matrix:
+            #     meta_val = meta.get("edge_attr", "edge_attr")
+            #     assert meta_val in edge
 
-                edge_attr = edge_data.edge_attr[i]
-                assert edge_attr.tolist() == edge[meta_val]
+            #     edge_attr = edge_data.edge_attr[i]
+            #     assert edge_attr.tolist() == edge[meta_val]
 
-            if has_edge_target_label:
-                meta_val = meta.get("y", "y")
-                assert meta_val in edge
+            # if has_edge_target_label:
+            #     meta_val = meta.get("y", "y")
+            #     assert meta_val in edge
 
-                y = edge_data.y[i]
-                try:
-                    y_val = y.item()
-                except ValueError:
-                    y_val = y.tolist()
+            #     y = edge_data.y[i]
+            #     try:
+            #         y_val = y.item()
+            #     except ValueError:
+            #         y_val = y.tolist()
 
-                # TODO: remove this ugly hack
-                if type(edge[meta_val]) is list:
-                    assert [y_val] == edge[meta_val]
-                else:
-                    assert y_val == edge[meta_val]
+            #     # TODO: remove this ugly hack
+            #     if type(edge[meta_val]) is list:
+            #         assert [y_val] == edge[meta_val]
+            #     else:
+            #         assert y_val == edge[meta_val]
 
 
 def assert_pyg_data(pyg_g: Union[Data, HeteroData], metagraph: ADBMetagraph) -> None:
