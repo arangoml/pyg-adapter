@@ -2,7 +2,7 @@ import logging
 import os
 import subprocess
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Dict
 
 try:
     # https://github.com/arangoml/pyg-adapter/issues/4
@@ -60,6 +60,17 @@ def pytest_configure(config: Any) -> None:
 
     global adbpyg_adapter
     adbpyg_adapter = ADBPyG_Adapter(db, logging_lvl=logging.DEBUG)
+
+
+def pytest_exception_interact(node, call, report) -> None:
+    if report.failed:
+        params: Dict[str, Any] = node.callspec.params
+
+        graph_name = params.get("name")
+        adapter = params.get("adapter")
+        if graph_name and adapter:
+            db: StandardDatabase = adapter.db
+            db.delete_graph(graph_name, drop_collections=True, ignore_missing=True)
 
 
 def arango_restore(con: Json, path_to_data: str) -> None:
