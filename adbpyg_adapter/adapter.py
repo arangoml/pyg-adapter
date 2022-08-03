@@ -654,7 +654,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         # TODO: clean this up
         try:
             docs = df.to_dict("records")
-        except TypeError: # cudf does not support to_dict
+        except TypeError:  # cudf does not support to_dict
             docs = df.to_pandas.to_dict("records")
 
         with progress(
