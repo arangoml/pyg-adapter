@@ -10,12 +10,7 @@ __all__ = [
 
 from typing import Any, Callable, DefaultDict, Dict, List, Tuple, Union
 
-try:
-    # https://github.com/arangoml/pyg-adapter/issues/4
-    from cudf import DataFrame
-except ModuleNotFoundError:
-    from pandas import DataFrame
-
+from pandas import DataFrame
 from torch import Tensor
 
 Json = Dict[str, Any]

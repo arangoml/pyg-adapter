@@ -5,12 +5,7 @@
 
 from typing import Any, Dict, Optional
 
-try:
-    # https://github.com/arangoml/pyg-adapter/issues/4
-    from cudf import DataFrame
-except ModuleNotFoundError:
-    from pandas import DataFrame
-
+from pandas import DataFrame
 from torch import Tensor, from_numpy, zeros
 
 

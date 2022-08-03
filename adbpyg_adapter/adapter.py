@@ -4,14 +4,9 @@ import logging
 from collections import defaultdict
 from typing import Any, DefaultDict, Dict, List, Set, Union
 
-try:
-    # https://github.com/arangoml/pyg-adapter/issues/4
-    from cudf import DataFrame
-except ModuleNotFoundError:
-    from pandas import DataFrame
-
 from arango.database import Database
 from arango.graph import Graph as ADBGraph
+from pandas import DataFrame
 from torch import Tensor, cat, tensor
 from torch_geometric.data import Data, HeteroData
 from torch_geometric.data.storage import EdgeStorage, NodeStorage
@@ -112,12 +107,12 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         The current supported **metagraph** values are:
             1) str: The name of the ArangoDB attribute that stores your PyG-ready data
 
-            2) Dict[str, Callable[[(pandas | cudf).DataFrame], torch.Tensor] | None]:
+            2) Dict[str, Callable[[pandas.DataFrame], torch.Tensor] | None]:
                 A dictionary mapping ArangoDB attributes to a callable Python Class
                 (i.e has a `__call__` function defined), or to None
                 (if the ArangoDB attribute is already a list of numerics).
 
-            3) Callable[[(pandas | cudf).DataFrame], torch.Tensor]:
+            3) Callable[[pandas.DataFrame], torch.Tensor]:
                 A user-defined function for custom behaviour.
                 NOTE: The function return type MUST be a tensor.
 
@@ -371,9 +366,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             2) List[str]: A list of ArangoDB attribute names that will break down
                 your tensor data to have one ArangoDB attribute per tensor value.
 
-            3) Callable[[torch.Tensor], (pandas | cudf).DataFrame]:
+            3) Callable[[torch.Tensor], pandas.DataFrame]:
                 A user-defined function for custom behaviour.
-                NOTE: The function return type MUST be a DataFrame (pandas or cudf).
+                NOTE: The function return type MUST be a DataFrame (pandas).
 
         1) Here is an example entry for parameter **metagraph**:
         .. code-block:: python
@@ -382,7 +377,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             # The parameter **t** is the tensor representing
             # the feature matrix 'x' of the 'v2' node type.
 
-            df = (pandas | cudf).DataFrame(columns=["v2_features"])
+            df = pandas.DataFrame(columns=["v2_features"])
             df["v2_features"] = t.tolist()
             # do more things with df["v2_features"] here ...
             return df
@@ -614,7 +609,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             when fetching documents from the ArangoDB instance.
         :type query_options: Any
         :return: A DataFrame representing the ArangoDB documents.
-        :rtype: (pandas | cudf).DataFrame
+        :rtype: pandas.DataFrame
         """
         # Only return the entire document if **empty_meta** is False
         data = "{_id: doc._id, _from: doc._from, _to: doc._to}" if empty_meta else "doc"
@@ -644,18 +639,13 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :param doc_type: The node or edge type of the soon-to-be ArangoDB documents
         :type doc_type: str | tuple[str, str, str]
         :param df: To-be-inserted ArangoDB documents, formatted as a DataFrame
-        :type df: (pandas | cudf).DataFrame
+        :type df: pandas.DataFrame
         :param kwargs: Keyword arguments to specify additional
             parameters for ArangoDB document insertion. Full parameter list:
             https://docs.python-arango.com/en/main/specs.html#arango.collection.Collection.import_bulk
         """
         col = doc_type if type(doc_type) is str else doc_type[1]
-
-        # TODO: clean this up
-        try:
-            docs = df.to_dict("records")
-        except TypeError:  # cudf does not support to_dict
-            docs = df.to_pandas().to_dict("records")
+        docs = df.to_dict("records")
 
         with progress(
             f"Import: {doc_type} ({len(docs)})",
@@ -677,7 +667,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         the nature of the user-defined metagraph.
 
         :param adb_df: The DataFrame representing ArangoDB data.
-        :type adb_df: (pandas | cudf).DataFrame
+        :type adb_df: pandas.DataFrame
         :param meta_key: The current ArangoDB-PyG metagraph key
         :type meta_key: str
         :param meta_val: The value mapped to **meta_key** to
@@ -731,7 +721,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         :param df: The main ArangoDB DataFrame containing (at minimum)
             the vertex/edge _id or _key attribute.
-        :type df: (pandas | cudf).DataFrame
+        :type df: pandas.DataFrame
         :param meta: The metagraph associated to the
             current PyG node or edge type.
         :type meta: Dict[Any, adbpyg_adapter.typings.PyGMetagraphValues]
@@ -743,7 +733,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             PyG node or edge type.
         :type pyg_data: torch_geometric.data.storage.(NodeStorage | EdgeStorage)
         :return: The completed DataFrame for the (soon-to-be) ArangoDB collection.
-        :rtype: (pandas | cudf).DataFrame
+        :rtype: pandas.DataFrame
         """
         for k in pyg_keys:
             if k == "edge_index":
@@ -774,7 +764,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             e.g the value of `metagraph['nodeTypes']['users']['x']`.
         :type meta_val: adbpyg_adapter.typings.PyGMetagraphValues
         :return: A DataFrame equivalent to the Tensor
-        :rtype: (pandas | cudf).DataFrame
+        :rtype: pandas.DataFrame
         :raise adbpyg_adapter.exceptions.PyGMetagraphError: If invalid **meta_val**.
         """
         logger.debug(f"__build_dataframe_from_tensor(df, '{meta_key}', {meta_val})")
