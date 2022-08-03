@@ -461,7 +461,9 @@ def test_adb_to_pyg(
 def test_adb_partial_to_pyg() -> None:
     # Generate a valid pyg_g graph
     pyg_g = get_fake_hetero_graph(avg_num_nodes=2, edge_dim=2)
-    while ("v0", "e0", "v0") not in pyg_g.edge_types:
+    e_t_1 = ("v0", "e0", "v0")
+    e_t_2 = ("v0", "e0", "v1")
+    while e_t_1 not in pyg_g.edge_types and e_t_2 not in pyg_g.edge_types:
         pyg_g = get_fake_hetero_graph(avg_num_nodes=2, edge_dim=2)
 
     name = "Heterogeneous"
