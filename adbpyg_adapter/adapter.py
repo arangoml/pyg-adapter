@@ -349,8 +349,13 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             If True, relies on **adbpyg_adapter.adb_map[**name**]** to map the
             PyG Node & Edge IDs back into ArangoDB Vertex & Edge IDs. Assumes that
             the user has a valid ADB Map for **name**.
-            An ADB Map can be built by running an ArangoDB to PyG operation for
-            the same **name**, or by writing the map manually. Defaults to False.
+            An ADB Map can be built by running ArangoDB to PyG operation for
+            the same **name**, or by creating the map manually. Defaults to False.
+
+            .. code-block:: python
+            adbpyg_adapter.pyg_to_arangodb(
+                name, pyg_g, preserve_adb_keys=True, on_duplicate="update"
+            )
         :type preserve_adb_keys: bool
         :param import_options: Keyword arguments to specify additional
             parameters for ArangoDB document insertion. Full parameter list:
@@ -407,6 +412,27 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         is_homogeneous = type(pyg_g) is Data
 
+        pyg_map = self.pyg_map[name]
+        if preserve_adb_keys:
+            if is_homogeneous:
+                msg = """
+                    **preserve_adb_keys** does not yet support
+                    homogeneous graphs (i.e type(pyg_g) is Data).
+                """
+                raise ValueError(msg)
+
+            if self.adb_map[name] == {}:
+                msg = f"""
+                    Parameter **preserve_adb_keys** was enabled,
+                    but no ArangoDB Map was found for graph {name} in
+                    **self.adb_map**.
+                """
+                raise ValueError(msg)
+
+            # Build the reverse map
+            for k, map in self.adb_map[name].items():
+                pyg_map[k].update({pyg_id: adb_id for adb_id, pyg_id in map.items()})
+
         node_types: List[str]
         edge_types: List[EdgeType]
         explicit_metagraph = metagraph != {} and explicit_metagraph
@@ -435,20 +461,6 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             adb_graph = self.__db.create_graph(
                 name, edge_definitions, orphan_collections
             )
-
-        pyg_map = self.pyg_map[name]
-        if preserve_adb_keys:
-            if self.adb_map[name] == {}:
-                msg = f"""
-                    Parameter **preserve_adb_keys** was enabled,
-                    but no ArangoDB Map was found for graph {name} in
-                    **self.adb_map**.
-                """
-                raise ValueError(msg)
-
-            # Build the reverse map
-            for k, map in self.adb_map[name].items():
-                pyg_map[k].update({pyg_id: adb_id for adb_id, pyg_id in map.items()})
 
         # Define PyG data properties
         node_data: NodeStorage
