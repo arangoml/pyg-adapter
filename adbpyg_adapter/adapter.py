@@ -499,7 +499,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 f = lambda n: self.__cntrl._prepare_pyg_node(n, n_type)
                 df = df.apply(f, axis=1)
 
-            self.__insert_adb_docs(n_type, df.to_dict("records"), import_options)
+            self.__insert_adb_docs(n_type, df, import_options)
 
         e_meta = metagraph.get("edgeTypes", {})
         for e_type in edge_types:
@@ -528,7 +528,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 f = lambda e: self.__cntrl._prepare_pyg_edge(e, e_type)
                 df = df.apply(f, axis=1)
 
-            self.__insert_adb_docs(e_type, df.to_dict("records"), import_options)
+            self.__insert_adb_docs(e_type, df, import_options)
 
         logger.info(f"Created ArangoDB '{name}' Graph")
         return adb_graph
@@ -637,19 +637,25 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             )
 
     def __insert_adb_docs(
-        self, doc_type: Union[str, EdgeType], docs: List[Json], kwargs: Any
+        self, doc_type: Union[str, EdgeType], df: DataFrame, kwargs: Any
     ) -> None:
         """Insert ArangoDB documents into their ArangoDB collection.
 
         :param doc_type: The node or edge type of the soon-to-be ArangoDB documents
         :type doc_type: str | tuple[str, str, str]
-        :param docs: To-be-inserted ArangoDB documents
-        :type docs: List[Json]
+        :param df: To-be-inserted ArangoDB documents, formatted as a DataFrame
+        :type df: (pandas | cudf).DataFrame
         :param kwargs: Keyword arguments to specify additional
             parameters for ArangoDB document insertion. Full parameter list:
             https://docs.python-arango.com/en/main/specs.html#arango.collection.Collection.import_bulk
         """
         col = doc_type if type(doc_type) is str else doc_type[1]
+
+        # TODO: clean this up
+        try:
+            docs = df.to_dict("records")
+        except TypeError: # cudf does not support to_dict
+            docs = df.to_pandas.to_dict("records")
 
         with progress(
             f"Import: {doc_type} ({len(docs)})",
