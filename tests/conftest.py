@@ -62,7 +62,7 @@ def pytest_configure(config: Any) -> None:
     adbpyg_adapter = ADBPyG_Adapter(db, logging_lvl=logging.DEBUG)
 
 
-def pytest_exception_interact(node, call, report) -> None:
+def pytest_exception_interact(node: Any, call: Any, report: Any) -> None:
     if report.failed:
         params: Dict[str, Any] = node.callspec.params
 

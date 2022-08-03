@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Optional, Set, Union
 
 import pytest
 from arango.graph import Graph as ArangoGraph
-from torch import Tensor, long, tensor
+from torch import Tensor, cat, long, tensor
 from torch_geometric.data import Data, HeteroData
 from torch_geometric.data.storage import EdgeStorage, NodeStorage
 from torch_geometric.typing import EdgeType
@@ -350,6 +350,16 @@ def test_pyg_to_arangodb_with_controller() -> None:
     db.delete_graph(name, drop_collections=True)
 
 
+def test_pyg_to_arangodb_preserve_adb_keys_errors() -> None:
+    pyg_g = get_fake_homo_graph(avg_num_nodes=3)
+    with pytest.raises(ValueError):
+        adbpyg_adapter.pyg_to_arangodb("Homogeneous", pyg_g, preserve_adb_keys=True)
+
+    pyg_g = get_fake_hetero_graph(avg_num_nodes=2)
+    with pytest.raises(ValueError):
+        adbpyg_adapter.pyg_to_arangodb("Heterogeneous", pyg_g, preserve_adb_keys=True)
+
+
 @pytest.mark.parametrize(
     "adapter, name, metagraph, pyg_g_old",
     [
@@ -625,7 +635,47 @@ def test_full_cycle_imdb() -> None:
     pyg_g = adbpyg_adapter.arangodb_to_pyg(name, adb_to_pyg_metagraph)
     assert_pyg_data(pyg_g, adb_to_pyg_metagraph)
 
-    pyg_to_adb_metagraph: PyGMetagraph = {
+    # 1) preserve_adb_keys = True
+
+    pyg_to_adb_metagraph_1: PyGMetagraph = {
+        "nodeTypes": {
+            "Users": {"x": ["Age", "Gender"]},
+            "Movies": {},
+        },
+        "edgeTypes": {("Users", "Ratings", "Movies"): {}},
+    }
+
+    # Add PyG User Node
+    pyg_g["Users"].x = cat((pyg_g["Users"].x, tensor([[99, 1]])), 0)
+
+    # Case 1.1: The PyG Map was not updated (will throw an error)
+    with pytest.raises(ValueError):
+        # Will throw a ValueError since the PyG Map is missing an extra
+        # entry for the new User
+        adbpyg_adapter.pyg_to_arangodb(
+            name,
+            pyg_g,
+            pyg_to_adb_metagraph_1,
+            preserve_adb_keys=True,
+            on_duplicate="update",
+        )
+
+    # Update the PyG Map
+    adbpyg_adapter.pyg_map["imdb"]["Users"][943] = f"Users/new-user-{944}"
+
+    # Case 1.2: The PyG map was updated
+    adb_g = adbpyg_adapter.pyg_to_arangodb(
+        name,
+        pyg_g,
+        pyg_to_adb_metagraph_1,
+        preserve_adb_keys=True,
+        on_duplicate="update",
+    )
+    assert_arangodb_data(name, pyg_g, adb_g, {}, skip_edge_assertion=True)
+    db.delete_graph(name, drop_collections=True)
+
+    # 2) preserve_adb_keys = False
+    pyg_to_adb_metagraph_2: PyGMetagraph = {
         "nodeTypes": {
             "Movies": {
                 "y": "comedy",  # ["comedy"]
@@ -636,10 +686,10 @@ def test_full_cycle_imdb() -> None:
         "edgeTypes": {("Users", "Ratings", "Movies"): {"edge_weight": "rating"}},
     }
     adb_g = adbpyg_adapter.pyg_to_arangodb(
-        name, pyg_g, pyg_to_adb_metagraph, overwrite=True
+        name, pyg_g, pyg_to_adb_metagraph_2, overwrite=True
     )
     assert_arangodb_data(
-        name, pyg_g, adb_g, pyg_to_adb_metagraph, skip_edge_assertion=True
+        name, pyg_g, adb_g, pyg_to_adb_metagraph_2, skip_edge_assertion=True
     )
 
     db.delete_graph(name, drop_collections=True)
