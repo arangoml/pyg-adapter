@@ -63,14 +63,19 @@ def pytest_configure(config: Any) -> None:
 
 
 def pytest_exception_interact(node: Any, call: Any, report: Any) -> None:
-    if report.failed:
-        params: Dict[str, Any] = node.callspec.params
+    try:
+        if report.failed:
+            params: Dict[str, Any] = node.callspec.params
 
-        graph_name = params.get("name")
-        adapter = params.get("adapter")
-        if graph_name and adapter:
-            db: StandardDatabase = adapter.db
-            db.delete_graph(graph_name, drop_collections=True, ignore_missing=True)
+            graph_name = params.get("name")
+            adapter = params.get("adapter")
+            if graph_name and adapter:
+                db: StandardDatabase = adapter.db
+                db.delete_graph(graph_name, drop_collections=True, ignore_missing=True)
+    except AttributeError:
+        print(node)
+        print(dir(node))
+        print("Could not delete graph")
 
 
 def arango_restore(con: Json, path_to_data: str) -> None:
