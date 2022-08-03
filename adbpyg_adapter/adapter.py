@@ -483,12 +483,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 df["_key"] = df.index.astype(str)
 
             meta = n_meta.get(n_type, {})
-            pyg_keys = (
-                set(meta.keys())
-                if explicit_metagraph
-                else {k for k, _ in node_data.items()}  # can't do node_data.keys()
-            )
-            df = self.__finish_adb_dataframe(df, meta, pyg_keys, node_data)
+            df = self.__finish_adb_dataframe(df, meta, node_data, explicit_metagraph)
 
             if type(self.__cntrl) is not ADBPyG_Controller:
                 f = lambda n: self.__cntrl._prepare_pyg_node(n, n_type)
@@ -512,12 +507,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 df["_to"] = to_col + "/" + df["_to"].astype(str)
 
             meta = e_meta.get(e_type, {})
-            pyg_keys = (
-                set(meta.keys())
-                if explicit_metagraph
-                else {k for k, _ in edge_data.items()}  # can't do edge_data.keys()
-            )
-            df = self.__finish_adb_dataframe(df, meta, pyg_keys, edge_data)
+            df = self.__finish_adb_dataframe(df, meta, edge_data, explicit_metagraph)
 
             if type(self.__cntrl) is not ADBPyG_Controller:
                 f = lambda e: self.__cntrl._prepare_pyg_edge(e, e_type)
@@ -712,8 +702,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         self,
         df: DataFrame,
         meta: Dict[Any, PyGMetagraphValues],
-        pyg_keys: Set[Any],
         pyg_data: Union[NodeStorage, EdgeStorage],
+        explicit_metagraph: bool,
     ) -> DataFrame:
         """A helper method to complete the ArangoDB Dataframe for the given
         collection. Is responsible for creating DataFrames from PyG tensors,
@@ -725,16 +715,21 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :param meta: The metagraph associated to the
             current PyG node or edge type.
         :type meta: Dict[Any, adbpyg_adapter.typings.PyGMetagraphValues]
-        :param pyg_keys: The set of PyG NodeStorage or EdgeStorage keys, retrieved
-            either from the **meta** parameter (if **explicit_metagraph** is True),
-            or from the **pyg_data** parameter (if **explicit_metagraph** is False).
-        :type pyg_keys: Set[Any]
         :param pyg_data: The NodeStorage or EdgeStorage of the current
             PyG node or edge type.
         :type pyg_data: torch_geometric.data.storage.(NodeStorage | EdgeStorage)
+        :param explicit_metagraph: The value of **explicit_metagraph**
+            in **pyg_to_arangodb**.
+        :type explicit_metagraph: bool
         :return: The completed DataFrame for the (soon-to-be) ArangoDB collection.
         :rtype: pandas.DataFrame
         """
+        if explicit_metagraph:
+            pyg_keys = set(meta.keys())
+        else:
+            # can't do keys() (not compatible with Homogeneous graphs)
+            pyg_keys = set(k for k, _ in pyg_data.items())
+
         for k in pyg_keys:
             if k == "edge_index":
                 continue
@@ -769,10 +764,21 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         """
         logger.debug(f"__build_dataframe_from_tensor(df, '{meta_key}', {meta_val})")
 
-        if type(meta_val) in [str, list]:
-            columns = [meta_val] if type(meta_val) is str else meta_val
+        if type(meta_val) is str:
+            df = DataFrame(columns=[meta_val])
+            df[meta_val] = pyg_tensor.tolist()
+            return df
 
-            df = DataFrame(columns=columns)
+        if type(meta_val) is list:
+            num_features = pyg_tensor.size()[1]
+            if len(meta_val) != num_features:  # pragma: no cover
+                msg = f"""
+                    Invalid length for {meta_val} ('{meta_key}'):
+                    List length must match the number of
+                    features found in the tensor ({num_features}).
+                """
+
+            df = DataFrame(columns=meta_val)
             df[meta_val] = pyg_tensor.tolist()
             return df
 
