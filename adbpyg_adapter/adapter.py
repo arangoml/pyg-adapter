@@ -298,6 +298,22 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :type v_cols: Set[str]
         :param e_cols: The set of ArangoDB edge collections to import to PyG.
         :type e_cols: Set[str]
+        :param preserve_adb_keys: NOTE: EXPERIMENTAL FEATURE. USE AT OWN RISK.
+            If True, preserves the ArangoDB Vertex & Edge _key values into
+            the PyG graph. Users can then re-import their PyG graph into
+            ArangoDB using the same _key values via the following method:
+
+            .. code-block:: python
+            adbpyg_adapter.pyg_to_arangodb(
+                graph_name, pyg_graph, ..., on_duplicate="update"
+            )
+
+            NOTE: If your ArangoDB graph is Homogeneous, the ArangoDB keys will
+            be preserved under `_v_key` & `_e_key` in your PyG graph. If your
+            ArangoDB graph is Heterogeneous, the ArangoDB keys will be preserved
+            under `_key` in your PyG graph.
+
+        :type preserve_adb_keys: bool
         :param query_options: Keyword arguments to specify AQL query options when
             fetching documents from the ArangoDB instance. Full parameter list:
             https://docs.python-arango.com/en/main/specs.html#arango.aql.AQL.execute
@@ -321,6 +337,22 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         :param name: The ArangoDB graph name.
         :type name: str
+        :param preserve_adb_keys: NOTE: EXPERIMENTAL FEATURE. USE AT OWN RISK.
+            If True, preserves the ArangoDB Vertex & Edge _key values into
+            the PyG graph. Users can then re-import their PyG graph into
+            ArangoDB using the same _key values via the following method:
+
+            .. code-block:: python
+            adbpyg_adapter.pyg_to_arangodb(
+                graph_name, pyg_graph, ..., on_duplicate="update"
+            )
+
+            NOTE: If your ArangoDB graph is Homogeneous, the ArangoDB keys will
+            be preserved under `_v_key` & `_e_key` in your PyG graph. If your
+            ArangoDB graph is Heterogeneous, the ArangoDB keys will be preserved
+            under `_key` in your PyG graph.
+
+        :type preserve_adb_keys: bool
         :param query_options: Keyword arguments to specify AQL query options when
             fetching documents from the ArangoDB instance. Full parameter list:
             https://docs.python-arango.com/en/main/specs.html#arango.aql.AQL.execute
