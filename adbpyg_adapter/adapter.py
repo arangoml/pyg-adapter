@@ -664,70 +664,17 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             https://docs.python-arango.com/en/main/specs.html#arango.collection.Collection.import_bulk
         """
         col = doc_type if type(doc_type) is str else doc_type[1]
-        docs = df.to_dict("records")
 
         with progress(
-            f"Import: {doc_type} ({len(docs)})",
+            f"Import: {doc_type} ({len(df)})",
             text_style="#825FE1",
             spinner_style="#3AA7F4",
         ) as p:
             p.add_task("__insert_adb_docs")
 
+            docs = df.to_dict("records")
             result = self.__db.collection(col).import_bulk(docs, **kwargs)
             logger.debug(result)
-
-    def __build_tensor_from_dataframe(
-        self,
-        adb_df: DataFrame,
-        meta_key: str,
-        meta_val: ADBMetagraphValues,
-    ) -> Tensor:
-        """Constructs a PyG-ready Tensor from a DataFrame, based on
-        the nature of the user-defined metagraph.
-
-        :param adb_df: The DataFrame representing ArangoDB data.
-        :type adb_df: pandas.DataFrame
-        :param meta_key: The current ArangoDB-PyG metagraph key
-        :type meta_key: str
-        :param meta_val: The value mapped to **meta_key** to
-            help convert **df** into a PyG-ready Tensor.
-            e.g the value of `metagraph['vertexCollections']['users']['x']`.
-        :type meta_val: adbpyg_adapter.typings.ADBMetagraphValues
-        :return: A PyG-ready tensor equivalent to the dataframe
-        :rtype: torch.Tensor
-        :raise adbpyg_adapter.exceptions.ADBMetagraphError: If invalid **meta_val**.
-        """
-        logger.debug(
-            f"__build_tensor_from_dataframe(df, '{meta_key}', {type(meta_val)})"
-        )
-
-        if type(meta_val) is str:
-            return tensor(adb_df[meta_val].to_list())
-
-        if type(meta_val) is dict:
-            data = []
-            for attr, encoder in meta_val.items():
-                if encoder is None:
-                    data.append(tensor(adb_df[attr].to_list()))
-                elif callable(encoder):
-                    data.append(encoder(adb_df[attr]))
-                else:  # pragma: no cover
-                    msg = f"Invalid encoder for ArangoDB attribute '{attr}': {encoder}"
-                    raise ADBMetagraphError(msg)
-
-            return cat(data, dim=-1)
-
-        if callable(meta_val):
-            # **meta_val** is a user-defined that returns a tensor
-            user_defined_result = meta_val(adb_df)
-
-            if type(user_defined_result) is not Tensor:  # pragma: no cover
-                msg = f"Invalid return type for function {meta_val} ('{meta_key}')"
-                raise ADBMetagraphError(msg)
-
-            return user_defined_result
-
-        raise ADBMetagraphError(f"Invalid {meta_val} type")  # pragma: no cover
 
     def __set_adb_data(
         self,
@@ -782,6 +729,59 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 df = df.join(self.__build_dataframe_from_tensor(data, k, meta_val))
 
         return df
+
+    def __build_tensor_from_dataframe(
+        self,
+        adb_df: DataFrame,
+        meta_key: str,
+        meta_val: ADBMetagraphValues,
+    ) -> Tensor:
+        """Constructs a PyG-ready Tensor from a DataFrame, based on
+        the nature of the user-defined metagraph.
+
+        :param adb_df: The DataFrame representing ArangoDB data.
+        :type adb_df: pandas.DataFrame
+        :param meta_key: The current ArangoDB-PyG metagraph key
+        :type meta_key: str
+        :param meta_val: The value mapped to **meta_key** to
+            help convert **df** into a PyG-ready Tensor.
+            e.g the value of `metagraph['vertexCollections']['users']['x']`.
+        :type meta_val: adbpyg_adapter.typings.ADBMetagraphValues
+        :return: A PyG-ready tensor equivalent to the dataframe
+        :rtype: torch.Tensor
+        :raise adbpyg_adapter.exceptions.ADBMetagraphError: If invalid **meta_val**.
+        """
+        logger.debug(
+            f"__build_tensor_from_dataframe(df, '{meta_key}', {type(meta_val)})"
+        )
+
+        if type(meta_val) is str:
+            return tensor(adb_df[meta_val].to_list())
+
+        if type(meta_val) is dict:
+            data = []
+            for attr, encoder in meta_val.items():
+                if encoder is None:
+                    data.append(tensor(adb_df[attr].to_list()))
+                elif callable(encoder):
+                    data.append(encoder(adb_df[attr]))
+                else:  # pragma: no cover
+                    msg = f"Invalid encoder for ArangoDB attribute '{attr}': {encoder}"
+                    raise ADBMetagraphError(msg)
+
+            return cat(data, dim=-1)
+
+        if callable(meta_val):
+            # **meta_val** is a user-defined that returns a tensor
+            user_defined_result = meta_val(adb_df)
+
+            if type(user_defined_result) is not Tensor:  # pragma: no cover
+                msg = f"Invalid return type for function {meta_val} ('{meta_key}')"
+                raise ADBMetagraphError(msg)
+
+            return user_defined_result
+
+        raise ADBMetagraphError(f"Invalid {meta_val} type")  # pragma: no cover
 
     def __build_dataframe_from_tensor(
         self,
