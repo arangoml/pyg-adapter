@@ -26,5 +26,5 @@ PyGDataTypes = Union[str, Tuple[str, str, str]]
 PyGMetagraphValues = Union[str, List[str], TensorToDataFrame]
 PyGMetagraph = Dict[str, Dict[PyGDataTypes, Dict[Any, PyGMetagraphValues]]]
 
-ADBMap = DefaultDict[str, DefaultDict[PyGDataTypes, Dict[str, int]]]
-PyGMap = DefaultDict[str, DefaultDict[PyGDataTypes, Dict[int, str]]]
+ADBMap = DefaultDict[PyGDataTypes, Dict[str, int]]
+PyGMap = DefaultDict[PyGDataTypes, Dict[int, str]]
