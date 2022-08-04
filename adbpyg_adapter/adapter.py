@@ -696,7 +696,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :rtype: torch.Tensor
         :raise adbpyg_adapter.exceptions.ADBMetagraphError: If invalid **meta_val**.
         """
-        logger.debug(f"__build_tensor_from_dataframe(df, '{meta_key}', {type(meta_val)})")
+        logger.debug(
+            f"__build_tensor_from_dataframe(df, '{meta_key}', {type(meta_val)})"
+        )
 
         if type(meta_val) is str:
             return tensor(adb_df[meta_val].to_list())
@@ -755,6 +757,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :rtype: pandas.DataFrame
         :raise ValueError: If an unsupported PyG data value is found.
         """
+        logger.debug(
+            f"__set_adb_data(df, {meta}, {type(pyg_data)}, {explicit_metagraph}"
+        )
+
         if explicit_metagraph:
             pyg_keys = set(meta.keys())
         else:
@@ -797,7 +803,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :rtype: pandas.DataFrame
         :raise adbpyg_adapter.exceptions.PyGMetagraphError: If invalid **meta_val**.
         """
-        logger.debug(f"__build_dataframe_from_tensor(df, '{meta_key}', {type(meta_val)})")
+        logger.debug(
+            f"__build_dataframe_from_tensor(df, '{meta_key}', {type(meta_val)})"
+        )
 
         if type(meta_val) is str:
             df = DataFrame(columns=[meta_val])
