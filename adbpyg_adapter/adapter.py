@@ -61,12 +61,6 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         self.__db = db
         self.__cntrl = controller
 
-        # Maps ArangoDB vertex keys to PyG node IDs
-        self.adb_map: ADBMap = defaultdict(lambda: defaultdict(dict))
-
-        # Maps PyG node IDs to ArangoDB vertex keys
-        self.pyg_map: PyGMap = defaultdict(lambda: defaultdict(dict))
-
         logger.info(f"Instantiated ADBPyG_Adapter with database '{db.name}'")
 
     @property
@@ -84,6 +78,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         self,
         name: str,
         metagraph: ADBMetagraph,
+        preserve_adb_keys: bool = False,
         **query_options: Any,
     ) -> Union[Data, HeteroData]:
         """Create a PyG graph from ArangoDB data. DOES carry
@@ -96,6 +91,22 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             which ArangoDB attributes will become PyG features/labels.
             See below for examples of **metagraph**.
         :type metagraph: adbpyg_adapter.typings.ADBMetagraph
+        :param preserve_adb_keys: NOTE: EXPERIMENTAL FEATURE. USE AT OWN RISK.
+            If True, preserves the ArangoDB Vertex & Edge _key values into
+            the PyG graph. Users can then re-import their PyG graph into
+            ArangoDB using the same _key values via the following method:
+
+            .. code-block:: python
+            adbpyg_adapter.pyg_to_arangodb(
+                "graph", pyg_graph, on_duplicate="update"
+            )
+
+            NOTE: If your ArangoDB graph is Homogeneous, the ArangoDB keys will
+            be preserved with `_v_key` & `_e_key` in your PyG graph. If your
+            ArangoDB graph is Heterogeneous, the ArangoDB keys will be preserved
+            with `_key` in your PyG graph.
+
+        :type preserve_adb_keys: bool
         :param query_options: Keyword arguments to specify AQL query options when
             fetching documents from the ArangoDB instance. Full parameter list:
             https://docs.python-arango.com/en/main/specs.html#arango.aql.AQL.execute
@@ -209,7 +220,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             and len(metagraph["edgeCollections"]) == 1
         )
 
-        adb_map = self.adb_map[name]
+        # Maps ArangoDB Vertex _keys to PyG Node ids
+        adb_map: ADBMap = defaultdict(dict)
 
         data = Data() if is_homogeneous else HeteroData()
 
@@ -217,11 +229,17 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             logger.debug(f"Preparing '{v_col}' vertices")
 
             df = self.__fetch_adb_docs(v_col, meta == {}, query_options)
-            adb_map[v_col] = {adb_id: pyg_id for pyg_id, adb_id in enumerate(df["_id"])}
+            adb_map[v_col] = {
+                adb_id: pyg_id for pyg_id, adb_id in enumerate(df["_key"])
+            }
 
             node_data: NodeStorage = data if is_homogeneous else data[v_col]
             for k, v in meta.items():
                 node_data[k] = self.__build_tensor_from_dataframe(df, k, v)
+
+            if preserve_adb_keys:
+                k = "_v_key" if is_homogeneous else "_key"
+                node_data[k] = list(adb_map[v_col].keys())
 
         et_df: DataFrame
         v_cols: List[str] = list(metagraph["vertexCollections"].keys())
@@ -229,8 +247,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             logger.debug(f"Preparing '{e_col}' edges")
 
             df = self.__fetch_adb_docs(e_col, meta == {}, query_options)
-            df["from_col"] = df["_from"].str.split("/").str[0]
-            df["to_col"] = df["_to"].str.split("/").str[0]
+            df[["from_col", "from_key"]] = df["_from"].str.split("/", 1, True)
+            df[["to_col", "to_key"]] = df["_to"].str.split("/", 1, True)
 
             for (from_col, to_col), count in (
                 df[["from_col", "to_col"]].value_counts().items()
@@ -245,16 +263,20 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 # Get the edge data corresponding to the current edge type
                 et_df = df[(df["from_col"] == from_col) & (df["to_col"] == to_col)]
                 adb_map[edge_type] = {
-                    adb_id: pyg_id for pyg_id, adb_id in enumerate(et_df["_id"])
+                    adb_id: pyg_id for pyg_id, adb_id in enumerate(et_df["_key"])
                 }
 
-                from_nodes = et_df["_from"].map(adb_map[from_col]).tolist()
-                to_nodes = et_df["_to"].map(adb_map[to_col]).tolist()
+                from_nodes = et_df["from_key"].map(adb_map[from_col]).tolist()
+                to_nodes = et_df["to_key"].map(adb_map[to_col]).tolist()
 
                 edge_data: EdgeStorage = data if is_homogeneous else data[edge_type]
                 edge_data.edge_index = tensor([from_nodes, to_nodes])
                 for k, v in meta.items():
                     edge_data[k] = self.__build_tensor_from_dataframe(et_df, k, v)
+
+                if preserve_adb_keys:
+                    k = "_e_key" if is_homogeneous else "_key"
+                    edge_data[k] = list(adb_map[edge_type].keys())
 
         logger.info(f"Created PyG '{name}' Graph")
         return data
@@ -264,6 +286,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         name: str,
         v_cols: Set[str],
         e_cols: Set[str],
+        preserve_adb_keys: bool = True,
         **query_options: Any,
     ) -> Union[Data, HeteroData]:
         """Create a PyG graph from ArangoDB collections. Due to risk of
@@ -288,10 +311,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             "edgeCollections": {col: dict() for col in e_cols},
         }
 
-        return self.arangodb_to_pyg(name, metagraph, **query_options)
+        return self.arangodb_to_pyg(name, metagraph, preserve_adb_keys, **query_options)
 
     def arangodb_graph_to_pyg(
-        self, name: str, **query_options: Any
+        self, name: str, preserve_adb_keys: bool = True, **query_options: Any
     ) -> Union[Data, HeteroData]:
         """Create a PyG graph from an ArangoDB graph. Due to risk of
             ambiguity, this method DOES NOT transfer ArangoDB attributes to PyG.
@@ -310,7 +333,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         v_cols = graph.vertex_collections()
         e_cols = {col["edge_collection"] for col in graph.edge_definitions()}
 
-        return self.arangodb_collections_to_pyg(name, v_cols, e_cols, **query_options)
+        return self.arangodb_collections_to_pyg(
+            name, v_cols, e_cols, preserve_adb_keys, **query_options
+        )
 
     def pyg_to_arangodb(
         self,
@@ -319,7 +344,6 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         metagraph: PyGMetagraph = {},
         explicit_metagraph: bool = True,
         overwrite_graph: bool = False,
-        preserve_adb_keys: bool = False,  # TODO: explain
         **import_options: Any,
     ) -> ADBGraph:
         """Create an ArangoDB graph from a PyG graph.
@@ -340,18 +364,6 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :param overwrite_graph: Overwrites the graph if it already exists.
             Does not drop associated collections. Defaults to False.
         :type overwrite_graph: bool
-        :param preserve_adb_keys: NOTE: EXPERIMENTAL FEATURE. USE AT OWN RISK.
-            If True, relies on **adbpyg_adapter.adb_map[**name**]** to map the
-            PyG Node & Edge IDs back into ArangoDB Vertex & Edge IDs. Assumes that
-            the user has a valid ADB Map for **name**.
-            An ADB Map can be built by running ArangoDB to PyG operation for
-            the same **name**, or by creating the map manually. Defaults to False.
-
-            .. code-block:: python
-            adbpyg_adapter.pyg_to_arangodb(
-                name, pyg_g, preserve_adb_keys=True, on_duplicate="update"
-            )
-        :type preserve_adb_keys: bool
         :param import_options: Keyword arguments to specify additional
             parameters for ArangoDB document insertion. Full parameter list:
             https://docs.python-arango.com/en/main/specs.html#arango.collection.Collection.import_bulk
@@ -407,26 +419,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         is_homogeneous = type(pyg_g) is Data
 
-        pyg_map = self.pyg_map[name]
-        if preserve_adb_keys:
-            if is_homogeneous:
-                msg = """
-                    **preserve_adb_keys** does not yet support
-                    homogeneous graphs (i.e type(pyg_g) is Data).
-                """
-                raise ValueError(msg)
-
-            if self.adb_map[name] == {}:
-                msg = f"""
-                    Parameter **preserve_adb_keys** was enabled,
-                    but no ArangoDB Map was found for graph {name} in
-                    **self.adb_map**.
-                """
-                raise ValueError(msg)
-
-            # Build the reverse map
-            for k, map in self.adb_map[name].items():
-                pyg_map[k].update({pyg_id: adb_id for adb_id, pyg_id in map.items()})
+        # Maps PyG Node ids to ArangoDB Vertex _keys
+        pyg_map: PyGMap = defaultdict(dict)
 
         node_types: List[str]
         edge_types: List[EdgeType]
@@ -464,26 +458,18 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         n_meta = metagraph.get("nodeTypes", {})
         for n_type in node_types:
             node_data = pyg_g if is_homogeneous else pyg_g[n_type]
-            num_nodes = node_data.num_nodes
-
-            df = DataFrame(index=range(num_nodes))
-            if preserve_adb_keys:
-                num_node_keys = len(pyg_map[n_type])
-
-                if num_nodes != num_node_keys:
-                    msg = f"""
-                        {num_nodes} does not match
-                        number of node keys in pyg_map
-                        ({num_node_keys}) for {n_type}
-                    """
-                    raise ValueError(msg)
-
-                df["_id"] = df.index.map(pyg_map[n_type])
-            else:
-                df["_key"] = df.index.astype(str)
 
             meta = n_meta.get(n_type, {})
-            df = self.__finish_adb_dataframe(df, meta, node_data, explicit_metagraph)
+            empty_df = DataFrame(index=range(node_data.num_nodes))
+            df = self.__set_adb_data(empty_df, meta, node_data, explicit_metagraph)
+
+            if "_id" in df:
+                pyg_map[n_type] = df["_id"].to_dict()
+            else:
+                if "_key" not in df:
+                    df["_key"] = df.index.astype(str)
+
+                pyg_map[n_type] = (n_type + "/" + df["_key"]).to_dict()
 
             if type(self.__cntrl) is not ADBPyG_Controller:
                 f = lambda n: self.__cntrl._prepare_pyg_node(n, n_type)
@@ -494,20 +480,27 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         e_meta = metagraph.get("edgeTypes", {})
         for e_type in edge_types:
             edge_data = pyg_g if is_homogeneous else pyg_g[e_type]
-            from_col, _, to_col = e_type
+            src_n_type, _, dst_n_type = e_type
 
             columns = ["_from", "_to"]
-            df = DataFrame(zip(*(edge_data.edge_index.tolist())), columns=columns)
-            if preserve_adb_keys:
-                df["_id"] = df.index.map(pyg_map[e_type])
-                df["_from"] = df["_from"].map(pyg_map[from_col])
-                df["_to"] = df["_to"].map(pyg_map[to_col])
-            else:
-                df["_from"] = from_col + "/" + df["_from"].astype(str)
-                df["_to"] = to_col + "/" + df["_to"].astype(str)
-
             meta = e_meta.get(e_type, {})
-            df = self.__finish_adb_dataframe(df, meta, edge_data, explicit_metagraph)
+            df = DataFrame(zip(*(edge_data.edge_index.tolist())), columns=columns)
+            df = self.__set_adb_data(df, meta, edge_data, explicit_metagraph)
+
+            if "_id" not in df and "_key" not in df:
+                df["_key"] = src_n_type + "-" + dst_n_type + "-" + df.index.astype(str)
+
+            df["_from"] = (
+                df["_from"].map(pyg_map[src_n_type])
+                if pyg_map[src_n_type]
+                else src_n_type + "/" + df["_from"].astype(str)
+            )
+
+            df["_to"] = (
+                df["_to"].map(pyg_map[dst_n_type])
+                if pyg_map[dst_n_type]
+                else dst_n_type + "/" + df["_to"].astype(str)
+            )
 
             if type(self.__cntrl) is not ADBPyG_Controller:
                 f = lambda e: self.__cntrl._prepare_pyg_edge(e, e_type)
@@ -602,10 +595,13 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :rtype: pandas.DataFrame
         """
         # Only return the entire document if **empty_meta** is False
-        data = "{_id: doc._id, _from: doc._from, _to: doc._to}" if empty_meta else "doc"
         aql = f"""
             FOR doc IN @@col
-                RETURN {data}
+                RETURN {
+                    "{ _key: doc._key, _from: doc._from, _to: doc._to }"
+                    if empty_meta
+                    else "doc"
+                }
         """
 
         with progress(
@@ -698,22 +694,24 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         raise ADBMetagraphError(f"Invalid {meta_val} type")  # pragma: no cover
 
-    def __finish_adb_dataframe(
+    def __set_adb_data(
         self,
         df: DataFrame,
         meta: Dict[Any, PyGMetagraphValues],
-        pyg_data: Union[NodeStorage, EdgeStorage],
+        pyg_data: Union[Data, NodeStorage, EdgeStorage],
         explicit_metagraph: bool,
     ) -> DataFrame:
-        """A helper method to complete the ArangoDB Dataframe for the given
-        collection. Is responsible for creating DataFrames from PyG tensors,
-        and appending them to the main dataframe **df**.
+        """A helper method to build the ArangoDB Dataframe for the given
+        collection. Is responsible for creating "sub-DataFrames" from PyG tensors
+        or lists, and appending them to the main dataframe **df**. If the data
+        does not adhere to the supported types, and is not of specific length,
+        then it is silently skipped.
 
         :param df: The main ArangoDB DataFrame containing (at minimum)
             the vertex/edge _id or _key attribute.
         :type df: pandas.DataFrame
         :param meta: The metagraph associated to the
-            current PyG node or edge type.
+            current PyG node or edge type. e.g metagraph['nodeTypes']['v0']
         :type meta: Dict[Any, adbpyg_adapter.typings.PyGMetagraphValues]
         :param pyg_data: The NodeStorage or EdgeStorage of the current
             PyG node or edge type.
@@ -723,6 +721,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :type explicit_metagraph: bool
         :return: The completed DataFrame for the (soon-to-be) ArangoDB collection.
         :rtype: pandas.DataFrame
+        :raise ValueError: If an unsupported PyG data value is found.
         """
         if explicit_metagraph:
             pyg_keys = set(meta.keys())
@@ -734,10 +733,14 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             if k == "edge_index":
                 continue
 
-            t = pyg_data[k]
-            if type(t) is Tensor and len(t) == len(df):
-                v = meta.get(k, str(k))
-                df = df.join(self.__build_dataframe_from_tensor(t, k, v))
+            meta_val = meta.get(k, str(k))
+            data = pyg_data[k]
+
+            if type(meta_val) is str and type(data) is list and len(data) == len(df):
+                df = df.join(DataFrame(data, columns=[meta_val]))
+
+            if type(data) is Tensor and len(data) == len(df):
+                df = df.join(self.__build_dataframe_from_tensor(data, k, meta_val))
 
         return df
 
@@ -777,6 +780,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                     List length must match the number of
                     features found in the tensor ({num_features}).
                 """
+                raise PyGMetagraphError(msg)
 
             df = DataFrame(columns=meta_val)
             df[meta_val] = pyg_tensor.tolist()
