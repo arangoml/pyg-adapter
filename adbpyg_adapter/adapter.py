@@ -98,13 +98,13 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
             .. code-block:: python
             adbpyg_adapter.pyg_to_arangodb(
-                "graph", pyg_graph, on_duplicate="update"
+                graph_name, pyg_graph, ..., on_duplicate="update"
             )
 
             NOTE: If your ArangoDB graph is Homogeneous, the ArangoDB keys will
-            be preserved with `_v_key` & `_e_key` in your PyG graph. If your
+            be preserved under `_v_key` & `_e_key` in your PyG graph. If your
             ArangoDB graph is Heterogeneous, the ArangoDB keys will be preserved
-            with `_key` in your PyG graph.
+            under `_key` in your PyG graph.
 
         :type preserve_adb_keys: bool
         :param query_options: Keyword arguments to specify AQL query options when
