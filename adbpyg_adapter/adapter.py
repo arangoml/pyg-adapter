@@ -696,7 +696,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :rtype: torch.Tensor
         :raise adbpyg_adapter.exceptions.ADBMetagraphError: If invalid **meta_val**.
         """
-        logger.debug(f"__build_tensor_from_dataframe(df, '{meta_key}', {meta_val})")
+        logger.debug(f"__build_tensor_from_dataframe(df, '{meta_key}', {type(meta_val)})")
 
         if type(meta_val) is str:
             return tensor(adb_df[meta_val].to_list())
@@ -797,7 +797,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :rtype: pandas.DataFrame
         :raise adbpyg_adapter.exceptions.PyGMetagraphError: If invalid **meta_val**.
         """
-        logger.debug(f"__build_dataframe_from_tensor(df, '{meta_key}', {meta_val})")
+        logger.debug(f"__build_dataframe_from_tensor(df, '{meta_key}', {type(meta_val)})")
 
         if type(meta_val) is str:
             df = DataFrame(columns=[meta_val])
@@ -808,7 +808,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             num_features = pyg_tensor.size()[1]
             if len(meta_val) != num_features:  # pragma: no cover
                 msg = f"""
-                    Invalid length for {meta_val} ('{meta_key}'):
+                    Invalid list length for **meta_val** ('{meta_key}'):
                     List length must match the number of
                     features found in the tensor ({num_features}).
                 """
