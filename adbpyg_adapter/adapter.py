@@ -391,7 +391,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :type metagraph: adbpyg_adapter.typings.PyGMetagraph
         :param explicit_metagraph: Whether to take the metagraph at face value or not.
             If False, node & edge types OMITTED from the metagraph will be
-            brought over into ArangoDB. Defaults to True.
+            brought over into ArangoDB. Also applies to node & edge attributes.
+            Defaults to True.
         :type explicit_metagraph: bool
         :param overwrite_graph: Overwrites the graph if it already exists.
             Does not drop associated collections. Defaults to False.
