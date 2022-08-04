@@ -460,9 +460,8 @@ def test_adb_to_pyg(
 def test_adb_partial_to_pyg() -> None:
     # Generate a valid pyg_g graph
     pyg_g = get_fake_hetero_graph(avg_num_nodes=2, edge_dim=2)
-    e_t_1 = ("v0", "e0", "v0")
-    e_t_2 = ("v0", "e0", "v1")
-    while e_t_1 not in pyg_g.edge_types and e_t_2 not in pyg_g.edge_types:
+    e_t = ("v0", "e0", "v0")
+    while e_t not in pyg_g.edge_types:
         pyg_g = get_fake_hetero_graph(avg_num_nodes=2, edge_dim=2)
 
     name = "Heterogeneous"
@@ -488,12 +487,8 @@ def test_adb_partial_to_pyg() -> None:
     assert type(pyg_g_new) is Data
     assert pyg_g["v0"].x.tolist() == pyg_g_new.x.tolist()
     assert pyg_g["v0"].y.tolist() == pyg_g_new.y.tolist()
-    print(pyg_g)
-    print(pyg_g_new)
-    assert (
-        pyg_g[("v0", "e0", "v0")].edge_index.tolist() == pyg_g_new.edge_index.tolist()
-    )
-    assert pyg_g[("v0", "e0", "v0")].edge_attr.tolist() == pyg_g_new.edge_attr.tolist()
+    assert pyg_g[e_t].edge_index.tolist() == pyg_g_new.edge_index.tolist()
+    assert pyg_g[e_t].edge_attr.tolist() == pyg_g_new.edge_attr.tolist()
 
     # Case 2: Partial edge collection import keeps the graph heterogeneous
     metagraph = {
@@ -512,7 +507,6 @@ def test_adb_partial_to_pyg() -> None:
 
     assert type(pyg_g_new) is HeteroData
     assert set(pyg_g_new.node_types) == {"v0", "v1"}
-    assert len(pyg_g_new.edge_types) >= 2
     for n_type in pyg_g_new.node_types:
         for k, v in pyg_g_new[n_type].items():
             assert v.tolist() == pyg_g[n_type][k].tolist()
@@ -696,19 +690,25 @@ def test_full_cycle_imdb_with_preserve_adb_keys() -> None:
     )
     assert_adb_to_pyg(pyg_g, adb_to_pyg_metagraph, True)
 
+    # Add PyG User Node & update the _key property
+    pyg_g["Users"].x = cat((pyg_g["Users"].x, tensor([[99, 1]])), 0)
+    pyg_g["Users"]["_key"].append("new-user-944")
+
+    # (coverage testing) Add _id property to Movies
+    # There's no point in having both _key and _id at the same time,
+    # but it is possible that a user prefers to have `preserve_adb_keys=False`,
+    # and build their own _key or _id list. The following line tries to simulate
+    # that while still adhering to the IMDB graph structure.
+    pyg_g["Movies"]["_id"] = ["Movies/" + k for k in pyg_g["Movies"]["_key"]]
+
     pyg_to_adb_metagraph: PyGMetagraph = {
         "nodeTypes": {
             "Users": {"x": ["Age", "Gender"], "_key": "_key"},
-            "Movies": {"_key": "_key"},
+            "Movies": {"_id": "_id"},
         },
         "edgeTypes": {("Users", "Ratings", "Movies"): {"_key": "_key"}},
     }
 
-    # Add PyG User Node
-    pyg_g["Users"].x = cat((pyg_g["Users"].x, tensor([[99, 1]])), 0)
-
-    # Update the _key property
-    pyg_g["Users"]["_key"].append("new-user-944")
     adbpyg_adapter.pyg_to_arangodb(
         name,
         pyg_g,
