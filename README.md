@@ -221,35 +221,19 @@ pyg_g = adbpyg_adapter.arangodb_to_pyg("FakeData", metagraph_v3)
 
 ### Full Cycle (ArangoDB -> PyG -> ArangoDB)
 ```py
-metagraph = {
-    "vertexCollections": {
-        "Movies": {
-            "y": "Comedy",
-            "x": {
-                "Action": IdentityEncoder(dtype=long),
-                "Drama": IdentityEncoder(dtype=long),
-            },
-        },
-        "Users": {
-            "x": {
-                "Age": IdentityEncoder(dtype=long),
-                "Gender": CategoricalEncoder(),
-            }
-        },
-    },
-    "edgeCollections": {"Ratings": {"edge_weight": "Rating"}},
-}
-
-pyg_g = adbpyg_adapter.arangodb_to_pyg(name, metagraph, preserve_adb_keys=True)
+# With `preserve_adb_keys=True`, the adapter will preserve the ArangoDB vertex & edge _key values into the (newly created) PyG graph.
+# Users can then re-import their PyG graph into ArangoDB using the same _key values 
+pyg_g = adbpyg_adapter.arangodb_graph_to_pyg("imdb", preserve_adb_keys=True)
 
 # pyg_g["Movies"]["_key"] --> ["1", "2", ..., "1682"]
 # pyg_g["Users"]["_key"] --> ["1", "2", ..., "943"]
 # pyg_g[("Users", "Ratings", "Movies")]["_key"] --> ["2732620466", ..., "2730643624"]
 
-# Add new PyG User Node & update the _key property
+# Example: Let's add a new PyG User Node & update the _key property
 pyg_g["Users"].x = torch.cat((pyg_g["Users"].x, torch.tensor([[99, 1]])), 0)
 pyg_g["Users"]["_key"].append("new-user-here-944")
 
+# Re-import PyG graph into ArangoDB
 adbpyg_adapter.pyg_to_arangodb("imdb", pyg_g, on_duplicate="update")
 ```
 
