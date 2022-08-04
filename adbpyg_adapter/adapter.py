@@ -286,7 +286,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         name: str,
         v_cols: Set[str],
         e_cols: Set[str],
-        preserve_adb_keys: bool = True,
+        preserve_adb_keys: bool = False,
         **query_options: Any,
     ) -> Union[Data, HeteroData]:
         """Create a PyG graph from ArangoDB collections. Due to risk of
@@ -330,7 +330,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         return self.arangodb_to_pyg(name, metagraph, preserve_adb_keys, **query_options)
 
     def arangodb_graph_to_pyg(
-        self, name: str, preserve_adb_keys: bool = True, **query_options: Any
+        self, name: str, preserve_adb_keys: bool = False, **query_options: Any
     ) -> Union[Data, HeteroData]:
         """Create a PyG graph from an ArangoDB graph. Due to risk of
             ambiguity, this method DOES NOT transfer ArangoDB attributes to PyG.
