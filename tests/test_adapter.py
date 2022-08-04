@@ -488,6 +488,8 @@ def test_adb_partial_to_pyg() -> None:
     assert type(pyg_g_new) is Data
     assert pyg_g["v0"].x.tolist() == pyg_g_new.x.tolist()
     assert pyg_g["v0"].y.tolist() == pyg_g_new.y.tolist()
+    print(pyg_g)
+    print(pyg_g_new)
     assert (
         pyg_g[("v0", "e0", "v0")].edge_index.tolist() == pyg_g_new.edge_index.tolist()
     )
