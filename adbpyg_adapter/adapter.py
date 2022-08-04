@@ -736,7 +736,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         """A helper method to build the ArangoDB Dataframe for the given
         collection. Is responsible for creating "sub-DataFrames" from PyG tensors
         or lists, and appending them to the main dataframe **df**. If the data
-        does not adhere to the supported types, and is not of specific length,
+        does not adhere to the supported types, or is not of specific length,
         then it is silently skipped.
 
         :param df: The main ArangoDB DataFrame containing (at minimum)
