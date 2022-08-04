@@ -1,10 +1,7 @@
-# flake8: noqa
-
 from collections import defaultdict
-from typing import Any, DefaultDict, Dict, List, Optional, Set, Union
+from typing import Any, Dict, List, Optional, Set, Union
 
 import pytest
-from arango.graph import Graph as ArangoGraph
 from pandas import DataFrame
 from torch import Tensor, cat, long, tensor
 from torch_geometric.data import Data, HeteroData
@@ -336,7 +333,7 @@ def test_pyg_to_adb(
     import_options: Any,
 ) -> None:
     db.delete_graph(name, drop_collections=True, ignore_missing=True)
-    adb_g = adapter.pyg_to_arangodb(
+    adapter.pyg_to_arangodb(
         name, pyg_g, metagraph, explicit_metagraph, overwrite_graph, **import_options
     )
     assert_pyg_to_adb(name, pyg_g, metagraph, explicit_metagraph)
@@ -779,7 +776,8 @@ def assert_pyg_to_adb(
 
         aql = f"""
             FOR edge IN {e_col}
-                FILTER IS_SAME_COLLECTION({from_col}, edge._from) AND IS_SAME_COLLECTION({to_col}, edge._to)
+                FILTER IS_SAME_COLLECTION({from_col}, edge._from)
+                AND IS_SAME_COLLECTION({to_col}, edge._to)
                 RETURN 1
         """
 
