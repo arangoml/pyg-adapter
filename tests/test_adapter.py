@@ -56,11 +56,7 @@ def test_validate_constructor() -> None:
     [  # empty metagraph
         ({}),
         # missing required parent key
-        (
-            {
-                "edgeCollections": {},
-            }
-        ),
+        ({"edgeCollections": {}}),
         # empty sub-metagraph
         ({"vertexCollections": {}}),
         # bad collection name
@@ -236,7 +232,7 @@ def test_validate_pyg_metagraph(bad_metagraph: Dict[Any, Any]) -> None:
             {"nodeTypes": {"Karate_2_N": {"x": "node_features"}}},
             True,
             False,
-            {"overwrite": True},
+            {},
         ),
         (
             adbpyg_adapter,
@@ -808,11 +804,13 @@ def assert_pyg_to_adb_meta(
         meta_val = meta.get(k, str(k))
         data = pyg_data[k]
 
-        if type(meta_val) is str and type(data) is list and len(data) == len(df):
+        assert len(data) == len(df)
+
+        if type(data) is list and type(meta_val):
             assert meta_val in df
             assert df[meta_val].tolist() == data
 
-        if type(data) is Tensor and len(data) == len(df):
+        if type(data) is Tensor:
             if type(meta_val) is str:
                 assert meta_val in df
                 assert df[meta_val].tolist() == data.tolist()

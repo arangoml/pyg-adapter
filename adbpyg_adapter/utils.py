@@ -121,6 +121,7 @@ def validate_pyg_metagraph(metagraph: Dict[Any, Dict[Any, Any]]) -> None:
 
     for parent_key in ["nodeTypes", "edgeTypes"]:
         for k, meta in metagraph.get(parent_key, {}).items():
+
             if type(meta) != dict:
                 msg = f"Invalid mapped value type for {k}: {meta} must be dict"
                 raise PyGMetagraphError(msg)
