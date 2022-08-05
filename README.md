@@ -93,13 +93,14 @@ def y_tensor_to_2_column_dataframe(pyg_tensor):
 metagraph = {
     "nodeTypes": {
         "v0": {
-            "x": "features",  # 1) you can specify a string value for attribute renaming
+            "x": "features",  # 1) You can specify a string value if you want to rename your PyG attribute when stored in ArangoDB
             "y": y_tensor_to_2_column_dataframe,  # 2) you can specify a function for user-defined handling, as long as the function returns a Pandas DataFrame
         },
+        "v1": {"x"} # 3) You can specify set of strings if you want to preserve the same PyG attribute names for the node/edge type
     },
     "edgeTypes": {
         ("v0", "e0", "v0"): {
-            # 3) you can specify a list of strings for tensor dissasembly (if you know the number of node/edge features in advance)
+            # 4) You can specify a list of strings for tensor dissasembly (if you know the number of node/edge features in advance)
             "edge_attr": [ "a", "b"]  
         },
     },
@@ -155,12 +156,11 @@ pyg_g = adbpyg_adapter.arangodb_collections_to_pyg("FakeData", v_cols={"v0", "v1
 # 2.3: ArangoDB to PyG via Metagraph v1 (transfer attributes "as is", meaning they are already formatted to PyG data standards)
 metagraph_v1 = {
     "vertexCollections": {
-        # we instruct the adapter to create the "x" and "y" tensor data from the "x" and "y" ArangoDB attributes
-        "v0": { "x": "x", "y": "y"},  
-        "v1": {"x": "x"},
+        "v0": { "x", "y"}, # Move the "x" & "y" ArangoDB attributes to PyG as Tensors
+        "v1": {"x"},
     },
     "edgeCollections": {
-        "e0": {"edge_attr": "edge_attr"},
+        "e0": {"edge_attr"},
     },
 }
 pyg_g = adbpyg_adapter.arangodb_to_pyg("FakeData", metagraph_v1)
@@ -185,7 +185,7 @@ metagraph_v2 = {
     },
     "edgeCollections": {
         "Ratings": {
-            "edge_weight": "Rating"
+            "edge_weight": "Rating" # Use the 'Rating' attribute for the PyG 'edge_weight' property
         }
     },
 }
