@@ -359,6 +359,12 @@ def test_pyg_to_adb(
     db.delete_graph(name, drop_collections=True)
 
 
+def test_pyg_to_adb_ambiguity_error() -> None:
+    d = Data(edge_index=tensor([[0, 1], [1, 0]]))
+    with pytest.raises(ValueError):
+        adbpyg_adapter.pyg_to_arangodb("graph", d)
+
+
 def test_pyg_to_arangodb_with_controller() -> None:
     name = "Karate_3"
     data = get_karate_graph()

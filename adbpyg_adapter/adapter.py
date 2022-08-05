@@ -487,6 +487,15 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         validate_pyg_metagraph(metagraph)
 
         is_homogeneous = type(pyg_g) is Data
+        if is_homogeneous and pyg_g.num_nodes == pyg_g.num_edges and not metagraph:
+            msg = f"""
+                Ambiguity Error: can't convert to ArangoDB,
+                as the PyG graph has the same number
+                of nodes & edges {pyg_g.num_nodes}.
+                Please supply a PyG-ArangoDB metagraph to
+                categorize your node & edge attributes.
+            """
+            raise ValueError(msg)
 
         # Maps PyG Node ids to ArangoDB Vertex _keys
         pyg_map: PyGMap = defaultdict(dict)
@@ -555,9 +564,6 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             meta = e_meta.get(e_type, {})
             df = DataFrame(zip(*(edge_data.edge_index.tolist())), columns=columns)
             df = self.__set_adb_data(df, meta, edge_data, explicit_metagraph)
-
-            if "_id" not in df and "_key" not in df:
-                df["_key"] = src_n_type + "-" + dst_n_type + "-" + df.index.astype(str)
 
             df["_from"] = (
                 df["_from"].map(pyg_map[src_n_type])
@@ -788,6 +794,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             meta_val = valid_meta.get(k, str(k))
 
             if type(meta_val) is str and type(data) is list and len(data) == len(df):
+                if meta_val in ["_v_key", "_e_key"]:  # Homogeneous situation
+                    meta_val = "_key"
+
                 df = df.join(DataFrame(data, columns=[meta_val]))
 
             if type(data) is Tensor and len(data) == len(df):
