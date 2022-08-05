@@ -695,6 +695,37 @@ def test_full_cycle_imdb_without_preserve_adb_keys() -> None:
     db.delete_graph(name, drop_collections=True)
 
 
+def test_full_cycle_homogeneous_with_preserve_adb_keys() -> None:
+    d = get_fake_homo_graph(avg_num_nodes=20, num_channels=2)
+
+    # Get Fake Data in ArangoDB
+    name = "Homogeneous"
+    db.delete_graph(name, drop_collections=True, ignore_missing=True)
+    adbpyg_adapter.pyg_to_arangodb(name, d)
+
+    pyg_g = adbpyg_adapter.arangodb_graph_to_pyg(name, preserve_adb_keys=True)
+
+    # Establish ground truth
+    arango_graph = db.graph(name)
+    v_cols = arango_graph.vertex_collections()
+    e_cols = {col["edge_collection"] for col in arango_graph.edge_definitions()}
+    metagraph={
+        "vertexCollections": {col: {} for col in v_cols},
+        "edgeCollections": {col: {} for col in e_cols},
+    }
+    assert_adb_to_pyg(pyg_g, metagraph, True)
+    assert "_v_key" in pyg_g and "_e_key" in pyg_g
+
+    num_nodes = d.num_nodes
+    pyg_g["_v_key"].append(f"new-vertex-{num_nodes}")
+    pyg_g.num_nodes = num_nodes + 1
+
+    adbpyg_adapter.pyg_to_arangodb(name, pyg_g, on_duplicate="update")
+    assert_pyg_to_adb(name, pyg_g, {}, False)
+    assert db.collection("Homogeneous_N").get(f"new-vertex-{num_nodes}") is not None
+
+    db.delete_graph(name, drop_collections=True, ignore_missing=True)
+
 def test_full_cycle_imdb_with_preserve_adb_keys() -> None:
     name = "imdb"
     db.delete_graph(name, drop_collections=True, ignore_missing=True)
@@ -861,6 +892,9 @@ def assert_pyg_to_adb_meta(
         data = pyg_data[k]
 
         if type(data) is list and len(data) == len(df) and type(meta_val) is str:
+            if meta_val in ["_v_key", "_e_key"]:  # Homogeneous situation
+                meta_val = "_key"
+
             assert meta_val in df
             assert df[meta_val].tolist() == data
 
@@ -908,11 +942,12 @@ def assert_adb_to_pyg(
         adb_map[v_col] = {adb_id: pyg_id for pyg_id, adb_id in enumerate(df["_key"])}
 
         if preserve_adb_keys:
-            assert "_key" in node_data
+            k = "_v_key" if is_homogeneous else "_key"
+            assert k in node_data
 
             data = df["_key"].tolist()
-            assert len(data) == len(node_data["_key"])
-            assert data == node_data["_key"]
+            assert len(data) == len(node_data[k])
+            assert data == node_data[k]
 
         assert_adb_to_pyg_meta(meta, df, node_data)
 
@@ -950,11 +985,12 @@ def assert_adb_to_pyg(
             assert to_nodes == edge_data.edge_index[1].tolist()
 
             if preserve_adb_keys:
-                assert "_key" in edge_data
+                k = "_e_key" if is_homogeneous else "_key"
+                assert k in edge_data
 
                 data = et_df["_key"].tolist()
-                assert len(data) == len(edge_data["_key"])
-                assert data == edge_data["_key"]
+                assert len(data) == len(edge_data[k])
+                assert data == edge_data[k]
 
             assert_adb_to_pyg_meta(meta, et_df, edge_data)
 
