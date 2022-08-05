@@ -162,7 +162,7 @@ metagraph_v1 = {
     "vertexCollections": {
         # Move the "x" & "y" ArangoDB attributes to PyG as "x" & "y" Tensors
         "v0": {"x", "y"}, # equivalent to {"x": "x", "y": "y"}
-        "v1": {"x": "x"},
+        "v1": {"v1_x": "x"}, # store the 'x' feature matrix as 'v1_x' in PyG
     },
     "edgeCollections": {
         "e0": {"edge_attr"},
@@ -222,7 +222,7 @@ metagraph_v3 = {
 pyg_g = adbpyg_adapter.arangodb_to_pyg("FakeData", metagraph_v3)
 ```
 
-### Full Cycle (ArangoDB -> PyG -> ArangoDB)
+### Experimental: `preserve_adb_keys`
 ```py
 # With `preserve_adb_keys=True`, the adapter will preserve the ArangoDB vertex & edge _key values into the (newly created) PyG graph.
 # Users can then re-import their PyG graph into ArangoDB using the same _key values 
