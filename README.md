@@ -232,9 +232,12 @@ pyg_g = adbpyg_adapter.arangodb_graph_to_pyg("imdb", preserve_adb_keys=True)
 # pyg_g["Users"]["_key"] --> ["1", "2", ..., "943"]
 # pyg_g[("Users", "Ratings", "Movies")]["_key"] --> ["2732620466", ..., "2730643624"]
 
-# Example: Let's add a new PyG User Node & update the _key property
-pyg_g["Users"].x = torch.cat((pyg_g["Users"].x, torch.tensor([[99, 1]])), 0)
+# Let's add a new PyG User Node by updating the _key property
 pyg_g["Users"]["_key"].append("new-user-here-944")
+
+# Note: Prior to the re-import, we must manually set the number of nodes in the PyG graph, since the `arangodb_graph_to_pyg` API creates featureless node data
+pyg_g["Movies"].num_nodes = len(pyg_g["Movies"]["_key"]) # 1682
+pyg_g["Users"].num_nodes = len(pyg_g["Users"]["_key"]) # 944 (prev. 943)
 
 # Re-import PyG graph into ArangoDB
 adbpyg_adapter.pyg_to_arangodb("imdb", pyg_g, on_duplicate="update")
