@@ -89,6 +89,27 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :param metagraph: An object defining vertex & edge collections to import
             to PyG, along with collection-level specifications to indicate
             which ArangoDB attributes will become PyG features/labels.
+
+            The current supported **metagraph** values are:
+                1) Set[str]: The set of PyG-ready ArangoDB attributes to store
+                    in your PyG graph.
+
+                2) Dict[str, str]: The PyG property name mapped to the ArangoDB
+                    attribute name that stores your PyG ready data.
+
+                3) Dict[str, Dict[str, None | Callable]]:
+                    The PyG property name mapped to a dictionary, which maps your
+                    ArangoDB attribute names to a callable Python Class
+                    (i.e has a `__call__` function defined), or to None
+                    (if the ArangoDB attribute is already a list of numerics).
+                    NOTE: The `__call__` function must take as input a Pandas DataFrame,
+                    and must return a PyTorch Tensor.
+
+                4) Dict[str, Callable[[pandas.DataFrame], torch.Tensor]]:
+                    The PyG property name mapped to a user-defined function
+                    for custom behaviour. NOTE: The function must take as input
+                    a Pandas DataFrame, and must return a PyTorch Tensor.
+
             See below for examples of **metagraph**.
         :type metagraph: adbpyg_adapter.typings.ADBMetagraph
         :param preserve_adb_keys: NOTE: EXPERIMENTAL FEATURE. USE AT OWN RISK.
@@ -105,7 +126,6 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             be preserved under `_v_key` & `_e_key` in your PyG graph. If your
             ArangoDB graph is Heterogeneous, the ArangoDB keys will be preserved
             under `_key` in your PyG graph.
-
         :type preserve_adb_keys: bool
         :param query_options: Keyword arguments to specify AQL query options when
             fetching documents from the ArangoDB instance. Full parameter list:
@@ -115,19 +135,28 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :rtype: torch_geometric.data.Data | torch_geometric.data.HeteroData
         :raise adbpyg_adapter.exceptions.ADBMetagraphError: If invalid metagraph.
 
-        The current supported **metagraph** values are:
-            1) str: The name of the ArangoDB attribute that stores your PyG-ready data
-
-            2) Dict[str, Callable[[pandas.DataFrame], torch.Tensor] | None]:
-                A dictionary mapping ArangoDB attributes to a callable Python Class
-                (i.e has a `__call__` function defined), or to None
-                (if the ArangoDB attribute is already a list of numerics).
-
-            3) Callable[[pandas.DataFrame], torch.Tensor]:
-                A user-defined function for custom behaviour.
-                NOTE: The function return type MUST be a tensor.
+        **metagraph** examples
 
         1)
+        .. code-block:: python
+        {
+            "vertexCollections": {
+                "v0": {'x', 'y'}, # equivalent to {'x': 'x', 'y': 'y'}
+                "v1": {'x'},
+                "v2": {'x'},
+            },
+            "edgeCollections": {
+                "e0": {'edge_attr'},
+                "e1": {'edge_weight'},
+            },
+        }
+
+        The metagraph above specifies that each document
+        within the "v0" ArangoDB collection has a "pre-built" feature matrix
+        named "x", and also has a node label named "y".
+        We map these keys to the "x" and "y" properties of the PyG graph.
+
+        2)
         .. code-block:: python
         {
             "vertexCollections": {
@@ -144,10 +173,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         The metagraph above specifies that each document
         within the "v0" ArangoDB collection has a "pre-built" feature matrix
         named "v0_features", and also has a node label named "label".
-        We map these keys to the "x" and "y" properties of a standard
-        PyG graph.
+        We map these keys to the "x" and "y" properties of the PyG graph.
 
-        2)
+        3)
         .. code-block:: python
         from adbpyg_adapter.encoders import IdentityEncoder, CategoricalEncoder
 
@@ -169,9 +197,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 },
             },
             "edgeCollections": {
-                "Ratings": {
-                    "edge_weight": "Rating"
-                }
+                "Ratings": { "edge_weight": "Rating" }
             },
         }
 
@@ -181,7 +207,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         NOTE: If the mapped value is `None`, then it assumes that the ArangoDB attribute
         value is a list containing numerical values only.
 
-        3)
+        4)
         .. code-block:: python
         def udf_v0_x(v0_df):
             # process v0_df here to return v0 "x" feature matrix
@@ -310,7 +336,6 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             be preserved under `_v_key` & `_e_key` in your PyG graph. If your
             ArangoDB graph is Heterogeneous, the ArangoDB keys will be preserved
             under `_key` in your PyG graph.
-
         :type preserve_adb_keys: bool
         :param query_options: Keyword arguments to specify AQL query options when
             fetching documents from the ArangoDB instance. Full parameter list:
@@ -349,7 +374,6 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             be preserved under `_v_key` & `_e_key` in your PyG graph. If your
             ArangoDB graph is Heterogeneous, the ArangoDB keys will be preserved
             under `_key` in your PyG graph.
-
         :type preserve_adb_keys: bool
         :param query_options: Keyword arguments to specify AQL query options when
             fetching documents from the ArangoDB instance. Full parameter list:
@@ -385,7 +409,26 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :param metagraph: An optional object mapping the PyG keys of
             the node & edge data to strings, list of strings, or user-defined
             functions. NOTE: Unlike the metagraph for ArangoDB to PyG, this
-            one is optional. See below for an example of **metagraph**.
+            one is optional.
+
+            The current supported **metagraph** values are:
+                1) Set[str]: The set of PyG data properties to store
+                    in your ArangoDB database.
+
+                2) Dict[str, str]: The PyG property name mapped to the ArangoDB
+                    attribute name that will be used to store your PyG data in ArangoDB.
+
+                3) List[str]: A list of ArangoDB attribute names that will break down
+                    your tensor data, resulting in one ArangoDB attribute per feature.
+                    Must know the number of node/edge features in advance to take
+                    advantage of this metagraph value type.
+
+                4) Dict[str, Callable[[pandas.DataFrame], torch.Tensor]]:
+                    The PyG property name mapped to a user-defined function
+                    for custom behaviour. NOTE: The function must take as input
+                    a PyTorch Tensor, and must return a Pandas DataFrame.
+
+            See below for an example of **metagraph**.
         :type metagraph: adbpyg_adapter.typings.PyGMetagraph
         :param explicit_metagraph: Whether to take the metagraph at face value or not.
             If False, node & edge types OMITTED from the metagraph will be
@@ -403,46 +446,41 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :rtype: arango.graph.Graph
         :raise adbpyg_adapter.exceptions.PyGMetagraphError: If invalid metagraph.
 
-        The current supported **metagraph** values are:
-            1) str: The name of the ArangoDB attribute that will store your PyG data
+        **metagraph** example
 
-            2) List[str]: A list of ArangoDB attribute names that will break down
-                your tensor data to have one ArangoDB attribute per tensor value.
-
-            3) Callable[[torch.Tensor], pandas.DataFrame]:
-                A user-defined function for custom behaviour.
-                NOTE: The function return type MUST be a DataFrame (pandas).
-
-        1) Here is an example entry for parameter **metagraph**:
         .. code-block:: python
+        def y_tensor_to_2_column_dataframe(pyg_tensor):
+            # A user-defined function to create two ArangoDB attributes
+            # out of the 'y' label tensor
+            label_map = {0: "Kiwi", 1: "Blueberry", 2: "Avocado"}
 
-        def v2_x_to_pandas_dataframe(t: Tensor):
-            # The parameter **t** is the tensor representing
-            # the feature matrix 'x' of the 'v2' node type.
+            df = pandas.DataFrame(columns=["label_num", "label_str"])
+            df["label_num"] = pyg_tensor.tolist()
+            df["label_str"] = df["label_num"].map(label_map)
 
-            df = pandas.DataFrame(columns=["v2_features"])
-            df["v2_features"] = t.tolist()
-            # do more things with df["v2_features"] here ...
             return df
 
-        {
+        metagraph = {
             "nodeTypes": {
-                "v0": {'x': 'v0_features', 'y': 'label'}, # supports str as value
-                "v1": {'x': ['x_0', 'x_1', ..., 'x_77']}, # supports list as value
-                "v2": {'x': v2_x_to_pandas_dataframe}, # supports function as value
+                "v0": {
+                    "x": "features",  # 1)
+                    "y": y_tensor_to_2_column_dataframe,  # 2)
+                },
+                "v1": {"x"} # 3)
             },
             "edgeTypes": {
-                ('v0', 'e0', 'v0'): {'edge_weight': 'v0_e0_v0_weight'}:
-                ('v0', 'e0', 'v1'): {'edge_weight': 'v0_e0_v1_weight'},
-                # etc...
+                ("v0", "e0", "v0"): {"edge_attr": [ "a", "b"]}, # 4)
             },
         }
 
-        Using the metagraph above will store the v0 "x" feature matrix as
-        "v0_features" in ArangoDB, and store the v0 "y" label tensor as
-        "label". Furthemore, the v1 "x" feature matrix is broken down in order to
-        associate one ArangoDB attribute per feature. Lastly, the v2 feature matrix
-        is converted into a DataFrame via a user-defined function.
+        The metagraph above accomplishes the following:
+        1) Renames the PyG 'v0' 'x' feature matrix to 'features'
+            when stored in ArangoDB.
+        2) Builds a 2-column Pandas DataFrame from the 'v0' 'y' labels
+            through a user-defined function for custom behaviour handling.
+        3) Transfers the PyG 'v1' 'x' feature matrix under the same name.
+        4) Dissasembles the 2-feature Tensor into two ArangoDB attributes,
+            where each attribute holds one feature value.
         """
         logger.debug(f"--pyg_to_arangodb('{name}')--")
 

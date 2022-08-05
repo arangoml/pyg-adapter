@@ -96,7 +96,8 @@ metagraph = {
             "x": "features",  # 1) You can specify a string value if you want to rename your PyG data when stored in ArangoDB
             "y": y_tensor_to_2_column_dataframe,  # 2) you can specify a function for user-defined handling, as long as the function returns a Pandas DataFrame
         },
-        "v1": {"x"} # 3) You can specify set of strings if you want to preserve the same PyG attribute names for the node/edge type
+        # 3) You can specify set of strings if you want to preserve the same PyG attribute names for the node/edge type
+        "v1": {"x"} # this is equivalent to {"x": "x"}
     },
     "edgeTypes": {
         ("v0", "e0", "v0"): {
