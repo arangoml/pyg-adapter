@@ -1,5 +1,4 @@
 from collections import defaultdict
-from sys import meta_path
 from typing import Any, Dict, List, Optional, Set, Union
 
 import pytest
