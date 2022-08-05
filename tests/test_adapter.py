@@ -1,4 +1,5 @@
 from collections import defaultdict
+from sys import meta_path
 from typing import Any, Dict, List, Optional, Set, Union
 
 import pytest
@@ -79,6 +80,18 @@ def test_validate_constructor() -> None:
                     # "vcol_a": 1,
                     # "vcol_a": 'foo',
                 }
+            }
+        ),
+        # bad collection metagraph 2
+        (
+            {
+                "vertexCollections": {
+                    "vcol_a": {"a", "b", 3},
+                    # other examples include:
+                    # "vcol_a": 1,
+                    # "vcol_a": 'foo',
+                },
+                "edgeCollections": {},
             }
         ),
         # bad meta_key
@@ -179,6 +192,8 @@ def test_validate_adb_metagraph(bad_metagraph: Dict[Any, Any]) -> None:
                 }
             }
         ),
+        # bad data type metagraph 2
+        ({"nodeTypes": {"ntype_a": {"a", "b", 3}}}),
         # bad meta_val
         (
             {
@@ -310,6 +325,15 @@ def test_validate_pyg_metagraph(bad_metagraph: Dict[Any, Any]) -> None:
         ),
         (
             adbpyg_adapter,
+            "FakeHeteroGraph_2",
+            get_fake_hetero_graph(avg_num_nodes=2),
+            {"nodeTypes": {"v0": {"x", "y"}, "v2": {"x"}}},
+            True,
+            False,
+            {},
+        ),
+        (
+            adbpyg_adapter,
             "SocialGraph",
             get_social_graph(),
             {"nodeTypes": {"user": {"x": ["age", "gender"]}}},
@@ -394,6 +418,21 @@ def test_pyg_to_arangodb_with_controller() -> None:
                 },
                 "edgeCollections": {
                     "e0": {"edge_attr": "edge_attr"},
+                },
+            },
+            get_fake_hetero_graph(avg_num_nodes=2, edge_dim=2),
+        ),
+        (
+            adbpyg_adapter,
+            "HeterogeneousSimpleMetagraph",
+            {
+                "vertexCollections": {
+                    "v0": {"x", "y"},
+                    "v1": {"x"},
+                    "v2": {"x"},
+                },
+                "edgeCollections": {
+                    "e0": {"edge_attr"},
                 },
             },
             get_fake_hetero_graph(avg_num_nodes=2, edge_dim=2),
@@ -564,11 +603,11 @@ def test_adb_graph_to_pyg(
         db.delete_graph(name, drop_collections=True, ignore_missing=True)
         adapter.pyg_to_arangodb(name, pyg_g_old)
 
+    pyg_g_new = adapter.arangodb_graph_to_pyg(name)
+
     arango_graph = db.graph(name)
     v_cols = arango_graph.vertex_collections()
     e_cols = {col["edge_collection"] for col in arango_graph.edge_definitions()}
-
-    pyg_g_new = adapter.arangodb_graph_to_pyg(name)
 
     # Manually set the number of nodes (since nodes are feature-less)
     for v_col in v_cols:
@@ -788,12 +827,15 @@ def assert_pyg_to_adb(
 
 def assert_pyg_to_adb_meta(
     df: DataFrame,
-    meta: Dict[Any, PyGMetagraphValues],
+    meta: Union[Set[str], Dict[Any, PyGMetagraphValues]],
     pyg_data: Union[NodeStorage, EdgeStorage],
     explicit_metagraph: bool,
 ) -> None:
+    valid_meta: Dict[Any, PyGMetagraphValues]
+    valid_meta = meta if type(meta) is dict else {m: m for m in meta}
+
     if explicit_metagraph:
-        pyg_keys = set(meta.keys())
+        pyg_keys = set(valid_meta.keys())
     else:
         pyg_keys = set(k for k, _ in pyg_data.items())
 
@@ -801,7 +843,7 @@ def assert_pyg_to_adb_meta(
         if k == "edge_index":
             continue
 
-        meta_val = meta.get(k, str(k))
+        meta_val = valid_meta.get(k, str(k))
         data = pyg_data[k]
 
         if type(data) is list and len(data) == len(df) and type(meta_val) is str:
@@ -903,11 +945,14 @@ def assert_adb_to_pyg(
 
 
 def assert_adb_to_pyg_meta(
-    meta: Dict[str, ADBMetagraphValues],
+    meta: Union[str, Dict[str, ADBMetagraphValues]],
     df: DataFrame,
     pyg_data: Union[NodeStorage, EdgeStorage],
 ) -> None:
-    for k, v in meta.items():
+    valid_meta: Dict[str, ADBMetagraphValues]
+    valid_meta = meta if type(meta) is dict else {m: m for m in meta}
+
+    for k, v in valid_meta.items():
         assert k in pyg_data
         assert type(pyg_data[k]) is Tensor
 

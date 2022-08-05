@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Set, Union
 
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
@@ -32,7 +32,7 @@ def progress(
 
 
 def validate_adb_metagraph(metagraph: Dict[Any, Dict[Any, Any]]) -> None:
-    meta: Dict[Any, Any]
+    meta: Union[Set[Any], Dict[Any, Any]]
 
     if "edgeCollections" in metagraph and "vertexCollections" not in metagraph:
         msg = """
@@ -61,48 +61,58 @@ def validate_adb_metagraph(metagraph: Dict[Any, Dict[Any, Any]]) -> None:
                 """
                 raise ADBMetagraphError(msg)
 
-            if type(meta) != dict:
+            if type(meta) == set:
+                for m in meta:
+                    if type(m) != str:
+                        msg = f"""
+                            Invalid set value type for {meta}:
+                            {m} must be str
+                        """
+                        raise ADBMetagraphError(msg)
+
+            elif type(meta) == dict:
+                for meta_key, meta_val in meta.items():
+                    if type(meta_key) != str:
+                        msg = f"""
+                            Invalid key type in {meta}:
+                            {meta_key} must be str
+                        """
+                        raise ADBMetagraphError(msg)
+
+                    if type(meta_val) not in [str, dict] and not callable(meta_val):
+                        msg = f"""
+                            Invalid mapped value type in {meta}:
+                            {meta_val} must be
+                                str | Dict[str, None | Callable] | Callable
+                        """
+
+                        raise ADBMetagraphError(msg)
+
+                    if type(meta_val) == dict:
+                        for k, v in meta_val.items():
+                            if type(k) != str:
+                                msg = f"""
+                                    Invalid ArangoDB attribute key type:
+                                    {v} must be str
+                                """
+                                raise ADBMetagraphError(msg)
+
+                            if v is not None and not callable(v):
+                                msg = f"""
+                                    Invalid PyG Encoder type:
+                                    {v} must be None | Callable
+                                """
+                                raise ADBMetagraphError(msg)
+            else:
                 msg = f"""
                     Invalid mapped value type for {col}:
-                    {meta} must be dict
+                    {meta} must be dict | set
                 """
                 raise ADBMetagraphError(msg)
 
-            for meta_key, meta_val in meta.items():
-                if type(meta_key) != str:
-                    msg = f"""
-                        Invalid key type in {meta}:
-                        {meta_key} must be str
-                    """
-                    raise ADBMetagraphError(msg)
-
-                if type(meta_val) not in [str, dict] and not callable(meta_val):
-                    msg = f"""
-                        Invalid mapped value type in {meta}:
-                        {meta_val} must be str | Dict[str, None | Callable] | Callable
-                    """
-
-                    raise ADBMetagraphError(msg)
-
-                if type(meta_val) == dict:
-                    for k, v in meta_val.items():
-                        if type(k) != str:
-                            msg = f"""
-                                Invalid ArangoDB attribute key type:
-                                {v} must be str
-                            """
-                            raise ADBMetagraphError(msg)
-
-                        if v is not None and not callable(v):
-                            msg = f"""
-                                Invalid PyG Encoder type:
-                                {v} must be None | Callable
-                            """
-                            raise ADBMetagraphError(msg)
-
 
 def validate_pyg_metagraph(metagraph: Dict[Any, Dict[Any, Any]]) -> None:
-    meta: Dict[Any, Any]
+    meta: Union[Set[Any], Dict[Any, Any]]
 
     for node_type in metagraph.get("nodeTypes", {}).keys():
         if type(node_type) != str:
@@ -121,23 +131,36 @@ def validate_pyg_metagraph(metagraph: Dict[Any, Dict[Any, Any]]) -> None:
 
     for parent_key in ["nodeTypes", "edgeTypes"]:
         for k, meta in metagraph.get(parent_key, {}).items():
-            if type(meta) != dict:
-                msg = f"Invalid mapped value type for {k}: {meta} must be dict"
+
+            if type(meta) == set:
+                for m in meta:
+                    if type(m) != str:
+                        msg = f"""
+                            Invalid set value type for {meta}:
+                            {m} must be str
+                        """
+                        raise PyGMetagraphError(msg)
+
+            elif type(meta) == dict:
+                for meta_val in meta.values():
+                    if type(meta_val) not in [str, list] and not callable(meta_val):
+                        msg = f"""
+                            Invalid mapped value type in {meta}:
+                            {meta_val} must be str | List[str] | Callable
+                        """
+                        raise PyGMetagraphError(msg)
+
+                    if type(meta_val) == list:
+                        for v in meta_val:
+                            if type(v) != str:
+                                msg = f"""
+                                    Invalid ArangoDB attribute key type:
+                                    {v} must be str
+                                """
+                                raise PyGMetagraphError(msg)
+            else:
+                msg = f"""
+                    Invalid mapped value type for {k}:
+                    {meta} must be dict | set
+                """
                 raise PyGMetagraphError(msg)
-
-            for meta_val in meta.values():
-                if type(meta_val) not in [str, list] and not callable(meta_val):
-                    msg = f"""
-                        Invalid mapped value type in {meta}:
-                        {meta_val} must be str | List[str] | Callable
-                    """
-                    raise PyGMetagraphError(msg)
-
-                if type(meta_val) == list:
-                    for v in meta_val:
-                        if type(v) != str:
-                            msg = f"""
-                                Invalid ArangoDB attribute key type:
-                                {v} must be str
-                            """
-                            raise PyGMetagraphError(msg)

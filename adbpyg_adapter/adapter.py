@@ -234,8 +234,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             }
 
             node_data: NodeStorage = data if is_homogeneous else data[v_col]
-            for k, v in meta.items():
-                node_data[k] = self.__build_tensor_from_dataframe(df, k, v)
+            self.__set_pyg_data(meta, node_data, df)
 
             if preserve_adb_keys:
                 k = "_v_key" if is_homogeneous else "_key"
@@ -271,8 +270,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
                 edge_data: EdgeStorage = data if is_homogeneous else data[edge_type]
                 edge_data.edge_index = tensor([from_nodes, to_nodes])
-                for k, v in meta.items():
-                    edge_data[k] = self.__build_tensor_from_dataframe(et_df, k, v)
+                self.__set_pyg_data(meta, edge_data, et_df)
 
                 if preserve_adb_keys:
                     k = "_e_key" if is_homogeneous else "_key"
@@ -676,10 +674,36 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             result = self.__db.collection(col).import_bulk(docs, **kwargs)
             logger.debug(result)
 
+    def __set_pyg_data(
+        self,
+        meta: Union[Set[str], Dict[str, ADBMetagraphValues]],
+        pyg_data: Union[Data, NodeStorage, EdgeStorage],
+        df: DataFrame,
+    ) -> None:
+        """A helper method to build the PyG NodeStorage or EdgeStorage object
+        for the PyG graph. Is responsible for preparing the input **meta** such
+        that it becomes a dictionary, and building PyG-ready tensors from the
+        ArangoDB DataFrame **df**.
+
+        :param meta: The metagraph associated to the current ArangoDB vertex or
+            edge collection. e.g metagraph['vertexCollections']['Users']
+        :type meta: Set[str] |  Dict[str, adbpyg_adapter.typings.ADBMetagraphValues]
+        :param pyg_data: The NodeStorage or EdgeStorage of the current
+            PyG node or edge type.
+        :type pyg_data: torch_geometric.data.storage.(NodeStorage | EdgeStorage)
+        :param df: The DataFrame representing the ArangoDB collection data
+        :type df: pandas.DataFrame
+        """
+        valid_meta: Dict[str, ADBMetagraphValues]
+        valid_meta = meta if type(meta) is dict else {m: m for m in meta}
+
+        for k, v in valid_meta.items():
+            pyg_data[k] = self.__build_tensor_from_dataframe(df, k, v)
+
     def __set_adb_data(
         self,
         df: DataFrame,
-        meta: Dict[Any, PyGMetagraphValues],
+        meta: Union[Set[str], Dict[Any, PyGMetagraphValues]],
         pyg_data: Union[Data, NodeStorage, EdgeStorage],
         explicit_metagraph: bool,
     ) -> DataFrame:
@@ -694,7 +718,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :type df: pandas.DataFrame
         :param meta: The metagraph associated to the
             current PyG node or edge type. e.g metagraph['nodeTypes']['v0']
-        :type meta: Dict[Any, adbpyg_adapter.typings.PyGMetagraphValues]
+        :type meta: Set[str] | Dict[Any, adbpyg_adapter.typings.PyGMetagraphValues]
         :param pyg_data: The NodeStorage or EdgeStorage of the current
             PyG node or edge type.
         :type pyg_data: torch_geometric.data.storage.(NodeStorage | EdgeStorage)
@@ -709,8 +733,11 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             f"__set_adb_data(df, {meta}, {type(pyg_data)}, {explicit_metagraph}"
         )
 
+        valid_meta: Dict[Any, PyGMetagraphValues]
+        valid_meta = meta if type(meta) is dict else {m: m for m in meta}
+
         if explicit_metagraph:
-            pyg_keys = set(meta.keys())
+            pyg_keys = set(valid_meta.keys())
         else:
             # can't do keys() (not compatible with Homogeneous graphs)
             pyg_keys = set(k for k, _ in pyg_data.items())
@@ -719,8 +746,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             if k == "edge_index":
                 continue
 
-            meta_val = meta.get(k, str(k))
             data = pyg_data[k]
+            meta_val = valid_meta.get(k, str(k))
 
             if type(meta_val) is str and type(data) is list and len(data) == len(df):
                 df = df.join(DataFrame(data, columns=[meta_val]))
