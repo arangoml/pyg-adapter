@@ -709,7 +709,7 @@ def test_full_cycle_homogeneous_with_preserve_adb_keys() -> None:
     arango_graph = db.graph(name)
     v_cols = arango_graph.vertex_collections()
     e_cols = {col["edge_collection"] for col in arango_graph.edge_definitions()}
-    metagraph={
+    metagraph: ADBMetagraph = {
         "vertexCollections": {col: {} for col in v_cols},
         "edgeCollections": {col: {} for col in e_cols},
     }
@@ -725,6 +725,7 @@ def test_full_cycle_homogeneous_with_preserve_adb_keys() -> None:
     assert db.collection("Homogeneous_N").get(f"new-vertex-{num_nodes}") is not None
 
     db.delete_graph(name, drop_collections=True, ignore_missing=True)
+
 
 def test_full_cycle_imdb_with_preserve_adb_keys() -> None:
     name = "imdb"
