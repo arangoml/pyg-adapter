@@ -636,9 +636,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         """
 
         with progress(
-            f"Export: {col}",
-            text_style="#97C423",
-            spinner_style="#7D3B04",
+            f"(ADB → PyG): {col}",
+            text_style="#8929C2",
+            spinner_style="#40A6F5",
         ) as p:
             p.add_task("__fetch_adb_docs")
 
@@ -664,9 +664,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         col = doc_type if type(doc_type) is str else doc_type[1]
 
         with progress(
-            f"Import: {doc_type} ({len(df)})",
-            text_style="#825FE1",
-            spinner_style="#3AA7F4",
+            f"(PyG → ADB): {doc_type} ({len(df)})",
+            text_style="#97C423",
+            spinner_style="#994602",
         ) as p:
             p.add_task("__insert_adb_docs")
 
