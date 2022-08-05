@@ -551,7 +551,15 @@ def test_adb_partial_to_pyg() -> None:
 
 @pytest.mark.parametrize(
     "adapter, name, v_cols, e_cols, pyg_g_old",
-    [(adbpyg_adapter, "SocialGraph", {"user", "game"}, {"plays"}, get_social_graph())],
+    [
+        (
+            adbpyg_adapter,
+            "SocialGraph",
+            {"user", "game"},
+            {"plays", "follows"},
+            get_social_graph(),
+        )
+    ],
 )
 def test_adb_collections_to_pyg(
     adapter: ADBPyG_Adapter,
@@ -790,7 +798,7 @@ def assert_pyg_to_adb(
         df = DataFrame(collection.all())
         pyg_map[n_type] = df["_id"].to_dict()
 
-        if "_key" in node_data:
+        if "_key" in node_data:  # preserve_adb_keys = True
             assert node_data["_key"] == df["_key"].tolist()
 
         meta = n_meta.get(n_type, {})
@@ -807,17 +815,18 @@ def assert_pyg_to_adb(
         df[["to_col", "to_key"]] = df["_to"].str.split("/", 1, True)
 
         et_df = df[(df["from_col"] == from_col) & (df["to_col"] == to_col)]
+        assert len(et_df) == edge_data.num_edges
 
-        aql = f"""
-            FOR edge IN {e_col}
-                FILTER IS_SAME_COLLECTION({from_col}, edge._from)
-                AND IS_SAME_COLLECTION({to_col}, edge._to)
-                RETURN 1
-        """
+        from_nodes = edge_data.edge_index[0].tolist()
+        to_nodes = edge_data.edge_index[1].tolist()
 
-        assert db.aql.execute(aql, count=True).count() == edge_data.num_edges
+        if pyg_map[from_col]:
+            assert [pyg_map[from_col][n] for n in from_nodes] == et_df["_from"].tolist()
 
-        if "_key" in edge_data:
+        if pyg_map[to_col]:
+            assert [pyg_map[to_col][n] for n in to_nodes] == et_df["_to"].tolist()
+
+        if "_key" in edge_data:  # preserve_adb_keys = True
             assert edge_data["_key"] == et_df["_key"].tolist()
 
         meta = e_meta.get(e_type, {})
@@ -905,8 +914,7 @@ def assert_adb_to_pyg(
     v_cols: List[str] = list(metagraph["vertexCollections"].keys())
     for e_col, meta in metagraph["edgeCollections"].items():
         collection = db.collection(e_col)
-        collection_count = collection.count()
-        assert collection_count == pyg_g.num_edges
+        assert collection.count() <= pyg_g.num_edges
 
         df = DataFrame(collection.all())
         df[["from_col", "from_key"]] = df["_from"].str.split("/", 1, True)
@@ -926,12 +934,14 @@ def assert_adb_to_pyg(
                 assert edge_type in pyg_g.edge_types
                 edge_data = pyg_g[edge_type]
 
+            assert count == edge_data.num_edges
+
             et_df = df[(df["from_col"] == from_col) & (df["to_col"] == to_col)]
             from_nodes = et_df["from_key"].map(adb_map[from_col]).tolist()
             to_nodes = et_df["to_key"].map(adb_map[to_col]).tolist()
 
-            assert edge_data.edge_index[0].tolist() == from_nodes
-            assert edge_data.edge_index[1].tolist() == to_nodes
+            assert from_nodes == edge_data.edge_index[0].tolist()
+            assert to_nodes == edge_data.edge_index[1].tolist()
 
             if preserve_adb_keys:
                 assert "_key" in edge_data
