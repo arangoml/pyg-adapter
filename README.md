@@ -93,7 +93,7 @@ def y_tensor_to_2_column_dataframe(pyg_tensor):
 metagraph = {
     "nodeTypes": {
         "v0": {
-            "x": "features",  # 1) You can specify a string value if you want to rename your PyG attribute when stored in ArangoDB
+            "x": "features",  # 1) You can specify a string value if you want to rename your PyG data when stored in ArangoDB
             "y": y_tensor_to_2_column_dataframe,  # 2) you can specify a function for user-defined handling, as long as the function returns a Pandas DataFrame
         },
         "v1": {"x"} # 3) You can specify set of strings if you want to preserve the same PyG attribute names for the node/edge type
@@ -111,7 +111,7 @@ adb_g = adbpyg_adapter.pyg_to_arangodb("FakeData", data, metagraph, explicit_met
 
 # 1.3: PyG to ArangoDB with the same (optional) metagraph, but with `explicit_metagraph=True`
 # With `explicit_metagraph=True`, the node & edge types omitted from the metagraph will NOT be converted to ArangoDB.
-# Only 'v0' and ('v0', 'e0', 'v0') will be brought over (i.e 'v1', ('v0', 'e0', 'v1'), ... are ignored)
+# Only 'v0', 'v1' and ('v0', 'e0', 'v0') will be brought over (i.e 'v2', ('v0', 'e0', 'v1'), ... are ignored)
 adb_g = adbpyg_adapter.pyg_to_arangodb("FakeData", data, metagraph, explicit_metagraph=True)
 
 # 1.4: PyG to ArangoDB with a Custom Controller  (more user-defined behavior)
@@ -156,8 +156,9 @@ pyg_g = adbpyg_adapter.arangodb_collections_to_pyg("FakeData", v_cols={"v0", "v1
 # 2.3: ArangoDB to PyG via Metagraph v1 (transfer attributes "as is", meaning they are already formatted to PyG data standards)
 metagraph_v1 = {
     "vertexCollections": {
-        "v0": { "x", "y"}, # Move the "x" & "y" ArangoDB attributes to PyG as Tensors
-        "v1": {"x"},
+        # Move the "x" & "y" ArangoDB attributes to PyG as "x" & "y" Tensors
+        "v0": {"x", "y"}, # equivalent to {"x": "x", "y": "y"}
+        "v1": {"x": "x"},
     },
     "edgeCollections": {
         "e0": {"edge_attr"},
@@ -184,9 +185,7 @@ metagraph_v2 = {
         },
     },
     "edgeCollections": {
-        "Ratings": {
-            "edge_weight": "Rating" # Use the 'Rating' attribute for the PyG 'edge_weight' property
-        }
+        "Ratings": { "edge_weight": "Rating" } # Use the 'Rating' attribute for the PyG 'edge_weight' property
     },
 }
 pyg_g = adbpyg_adapter.arangodb_to_pyg("IMDB", metagraph_v2)
