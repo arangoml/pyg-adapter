@@ -73,6 +73,9 @@ jobs:
           pip install torch
           pip install .[dev]
 
+      - name: Remove (old) distribution
+        run: rm -rf dist
+
       - name: Build distribution
         run: conda run -n ${{ matrix.python }} python setup.py sdist bdist_wheel
 

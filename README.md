@@ -69,6 +69,9 @@ adbpyg_adapter = ADBPyG_Adapter(db)
 ```
 
 ### PyG to ArangoDB
+
+Note: If the PyG graph contains `_key`, `_v_key`, or `_e_key` properties for any node / edge types, the adapter will assume to persist those values as [ArangoDB document keys](https://www.arangodb.com/docs/stable/data-modeling-naming-conventions-document-keys.html). See the `Full Cycle (ArangoDB -> PyG -> ArangoDB)` section below for an example.
+
 ```py
 # 1.1: PyG to ArangoDB
 adb_g = adbpyg_adapter.pyg_to_arangodb("FakeData", data)
@@ -93,13 +96,15 @@ def y_tensor_to_2_column_dataframe(pyg_tensor):
 metagraph = {
     "nodeTypes": {
         "v0": {
-            "x": "features",  # 1) you can specify a string value for attribute renaming
+            "x": "features",  # 1) You can specify a string value if you want to rename your PyG data when stored in ArangoDB
             "y": y_tensor_to_2_column_dataframe,  # 2) you can specify a function for user-defined handling, as long as the function returns a Pandas DataFrame
         },
+        # 3) You can specify set of strings if you want to preserve the same PyG attribute names for the node/edge type
+        "v1": {"x"} # this is equivalent to {"x": "x"}
     },
     "edgeTypes": {
         ("v0", "e0", "v0"): {
-            # 3) you can specify a list of strings for tensor dissasembly (if you know the number of node/edge features in advance)
+            # 4) You can specify a list of strings for tensor dissasembly (if you know the number of node/edge features in advance)
             "edge_attr": [ "a", "b"]  
         },
     },
@@ -110,7 +115,7 @@ adb_g = adbpyg_adapter.pyg_to_arangodb("FakeData", data, metagraph, explicit_met
 
 # 1.3: PyG to ArangoDB with the same (optional) metagraph, but with `explicit_metagraph=True`
 # With `explicit_metagraph=True`, the node & edge types omitted from the metagraph will NOT be converted to ArangoDB.
-# Only 'v0' and ('v0', 'e0', 'v0') will be brought over (i.e 'v1', ('v0', 'e0', 'v1'), ... are ignored)
+# Only 'v0', 'v1' and ('v0', 'e0', 'v0') will be brought over (i.e 'v2', ('v0', 'e0', 'v1'), ... are ignored)
 adb_g = adbpyg_adapter.pyg_to_arangodb("FakeData", data, metagraph, explicit_metagraph=True)
 
 # 1.4: PyG to ArangoDB with a Custom Controller  (more user-defined behavior)
@@ -155,12 +160,12 @@ pyg_g = adbpyg_adapter.arangodb_collections_to_pyg("FakeData", v_cols={"v0", "v1
 # 2.3: ArangoDB to PyG via Metagraph v1 (transfer attributes "as is", meaning they are already formatted to PyG data standards)
 metagraph_v1 = {
     "vertexCollections": {
-        # we instruct the adapter to create the "x" and "y" tensor data from the "x" and "y" ArangoDB attributes
-        "v0": { "x": "x", "y": "y"},  
-        "v1": {"x": "x"},
+        # Move the "x" & "y" ArangoDB attributes to PyG as "x" & "y" Tensors
+        "v0": {"x", "y"}, # equivalent to {"x": "x", "y": "y"}
+        "v1": {"v1_x": "x"}, # store the 'x' feature matrix as 'v1_x' in PyG
     },
     "edgeCollections": {
-        "e0": {"edge_attr": "edge_attr"},
+        "e0": {"edge_attr"},
     },
 }
 pyg_g = adbpyg_adapter.arangodb_to_pyg("FakeData", metagraph_v1)
@@ -184,9 +189,7 @@ metagraph_v2 = {
         },
     },
     "edgeCollections": {
-        "Ratings": {
-            "edge_weight": "Rating"
-        }
+        "Ratings": { "edge_weight": "Rating" } # Use the 'Rating' attribute for the PyG 'edge_weight' property
     },
 }
 pyg_g = adbpyg_adapter.arangodb_to_pyg("IMDB", metagraph_v2)
@@ -217,6 +220,27 @@ metagraph_v3 = {
     },
 }
 pyg_g = adbpyg_adapter.arangodb_to_pyg("FakeData", metagraph_v3)
+```
+
+### Experimental: `preserve_adb_keys`
+```py
+# With `preserve_adb_keys=True`, the adapter will preserve the ArangoDB vertex & edge _key values into the (newly created) PyG graph.
+# Users can then re-import their PyG graph into ArangoDB using the same _key values 
+pyg_g = adbpyg_adapter.arangodb_graph_to_pyg("imdb", preserve_adb_keys=True)
+
+# pyg_g["Movies"]["_key"] --> ["1", "2", ..., "1682"]
+# pyg_g["Users"]["_key"] --> ["1", "2", ..., "943"]
+# pyg_g[("Users", "Ratings", "Movies")]["_key"] --> ["2732620466", ..., "2730643624"]
+
+# Let's add a new PyG User Node by updating the _key property
+pyg_g["Users"]["_key"].append("new-user-here-944")
+
+# Note: Prior to the re-import, we must manually set the number of nodes in the PyG graph, since the `arangodb_graph_to_pyg` API creates featureless node data
+pyg_g["Movies"].num_nodes = len(pyg_g["Movies"]["_key"]) # 1682
+pyg_g["Users"].num_nodes = len(pyg_g["Users"]["_key"]) # 944 (prev. 943)
+
+# Re-import PyG graph into ArangoDB
+adbpyg_adapter.pyg_to_arangodb("imdb", pyg_g, on_duplicate="update")
 ```
 
 ##  Development & Testing

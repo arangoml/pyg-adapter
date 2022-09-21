@@ -2,7 +2,7 @@ import logging
 import os
 import subprocess
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Dict
 
 from arango import ArangoClient
 from arango.database import StandardDatabase
@@ -55,6 +55,22 @@ def pytest_configure(config: Any) -> None:
 
     global adbpyg_adapter
     adbpyg_adapter = ADBPyG_Adapter(db, logging_lvl=logging.DEBUG)
+
+
+def pytest_exception_interact(node: Any, call: Any, report: Any) -> None:
+    try:
+        if report.failed:
+            params: Dict[str, Any] = node.callspec.params
+
+            graph_name = params.get("name")
+            adapter = params.get("adapter")
+            if graph_name and adapter:
+                db: StandardDatabase = adapter.db
+                db.delete_graph(graph_name, drop_collections=True, ignore_missing=True)
+    except AttributeError:
+        print(node)
+        print(dir(node))
+        print("Could not delete graph")
 
 
 def arango_restore(con: Json, path_to_data: str) -> None:
