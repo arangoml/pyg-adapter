@@ -68,7 +68,7 @@ jobs:
       - name: Install packages
         run: |
           source ~/anaconda3/etc/profile.d/conda.sh
-          conda activate 3.8
+          conda activate "3.8"
           pip install setuptools wheel twine setuptools-scm[toml]
           pip install torch
           pip install .[dev]
@@ -77,13 +77,13 @@ jobs:
         run: rm -rf dist
 
       - name: Build distribution
-        run: conda run -n 3.8 python setup.py sdist bdist_wheel
+        run: conda run -n "3.8" python setup.py sdist bdist_wheel
 
       - name: Publish to Test PyPi
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD_TEST }}
-        run: conda run -n 3.8 twine upload --repository testpypi dist/* #--skip-existing
+        run: conda run -n "3.8" twine upload --repository testpypi dist/* #--skip-existing
       - name: Publish to PyPi
         env:
           TWINE_USERNAME: __token__
