@@ -17,3 +17,16 @@ class ADBMetagraphError(ADBPyGValidationError):
 
 class PyGMetagraphError(ADBPyGValidationError):
     """Invalid PyG Metagraph value"""
+
+
+##################
+#   ADB -> PyG   #
+##################
+
+
+class ADBPyGImportError(ADBPyGError):
+    """Errors on import from ArangoDB to PyG"""
+
+
+class InvalidADBEdgesError(ADBPyGImportError):
+    """Invalid edges on import from ArangoDB to PyG"""
