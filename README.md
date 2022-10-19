@@ -42,6 +42,8 @@ pip install git+https://github.com/arangoml/pyg-adapter.git
 
 [![Open In Collab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/arangoml/pyg-adapter/blob/master/examples/ArangoDB_PyG_Adapter.ipynb)
 
+Also available as an ArangoDB Lunch & Learn session on YouTube: [Graph & Beyond Course: ArangoDB-PyG Adapter](https://www.youtube.com/watch?v=QtGR95NN8bA)
+
 ```py
 import torch
 import pandas
