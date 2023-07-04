@@ -7,7 +7,7 @@ from typing import Any, DefaultDict, Dict, List, Set, Union
 import torch
 from arango.database import Database
 from arango.graph import Graph as ADBGraph
-from pandas import DataFrame
+from pandas import DataFrame, Series
 from torch import Tensor, cat, tensor
 from torch_geometric.data import Data, HeteroData
 from torch_geometric.data.storage import EdgeStorage, NodeStorage
@@ -69,7 +69,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         return self.__db  # pragma: no cover
 
     @property
-    def cntrl(self) -> Database:
+    def cntrl(self) -> ADBPyG_Controller:
         return self.__cntrl  # pragma: no cover
 
     def set_logging(self, level: Union[int, str]) -> None:
@@ -277,8 +277,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             logger.debug(f"Preparing '{e_col}' edges")
 
             df = self.__fetch_adb_docs(e_col, meta == {}, query_options)
-            df[["from_col", "from_key"]] = df["_from"].str.split("/", 1, True)
-            df[["to_col", "to_key"]] = df["_to"].str.split("/", 1, True)
+            df[["from_col", "from_key"]] = self.__split_adb_ids(df["_from"])
+            df[["to_col", "to_key"]] = self.__split_adb_ids(df["_to"])
 
             for (from_col, to_col), count in (
                 df[["from_col", "to_col"]].value_counts().items()
@@ -401,8 +401,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :raise adbpyg_adapter.exceptions.ADBMetagraphError: If invalid metagraph.
         """
         graph = self.__db.graph(name)
-        v_cols = graph.vertex_collections()
-        e_cols = {col["edge_collection"] for col in graph.edge_definitions()}
+        v_cols: Set[str] = graph.vertex_collections()  # type: ignore
+        edge_definitions: List[Json] = graph.edge_definitions()  # type: ignore
+        e_cols: Set[str] = {c["edge_collection"] for c in edge_definitions}
 
         return self.arangodb_collections_to_pyg(
             name, v_cols, e_cols, preserve_adb_keys, **query_options
@@ -544,7 +545,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             orphan_collections = self.ntypes_to_ocollections(node_types, edge_types)
             adb_graph = self.__db.create_graph(
                 name, edge_definitions, orphan_collections
-            )
+            )  # type: ignore
 
         # Define PyG data properties
         node_data: NodeStorage
@@ -734,6 +735,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             docs = df.to_dict("records")
             result = self.__db.collection(col).import_bulk(docs, **kwargs)
             logger.debug(result)
+
+    def __split_adb_ids(self, s: Series) -> Series:
+        """Helper method to split the ArangoDB IDs within a Series into two columns"""
+        return s.str.split(pat="/", n=1, expand=True)
 
     def __set_pyg_data(
         self,

@@ -1,0 +1,51 @@
+name: build_self_hosted
+on:
+  workflow_dispatch:
+env:
+  PACKAGE_DIR: adbpyg_adapter
+  TESTS_DIR: tests
+jobs:
+  build:
+    runs-on: self-hosted
+    defaults:
+      run:
+        shell: bash -l {0}
+    strategy:
+      matrix:
+        include:
+          - python: "3.7"
+            DB_NAME: "py37"
+
+          - python: "3.8"
+            DB_NAME: "py38"
+
+          - python: "3.9"
+            DB_NAME: "py39"
+
+          - python: "3.10"
+            DB_NAME: "py310"
+    name: Python ${{ matrix.python }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up pip & install packages
+        run: |
+          source ~/anaconda3/etc/profile.d/conda.sh
+          conda activate ${{ matrix.python }}
+          python -m pip install --upgrade pip setuptools wheel
+          pip install torch
+          pip install .[dev]
+      - name: Run black
+        run: conda run -n ${{ matrix.python }} black --check --verbose --diff --color ${{env.PACKAGE_DIR}} ${{env.TESTS_DIR}}
+      - name: Run flake8
+        run: flake8 ${{env.PACKAGE_DIR}} ${{env.TESTS_DIR}}
+      - name: Run isort
+        run: isort --check --profile=black ${{env.PACKAGE_DIR}} ${{env.TESTS_DIR}}
+      - name: Run mypy
+        run: conda run -n ${{ matrix.python }} mypy ${{env.PACKAGE_DIR}} ${{env.TESTS_DIR}}
+      - name: Run pytest in conda env
+        run: conda run -n ${{ matrix.python }} pytest --dbName ${{ matrix.DB_NAME }} --cov=${{env.PACKAGE_DIR}} --cov-report xml --cov-report term-missing -v --color=yes --no-cov-on-fail --code-highlight=yes
+      - name: Publish to coveralls.io
+        if: matrix.python == '3.8'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: conda run -n ${{ matrix.python }} coveralls --service=github

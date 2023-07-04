@@ -45,8 +45,8 @@ def pytest_configure(config: Any) -> None:
     print("Database: " + con["dbName"])
     print("----------------------------------------")
 
-    class NoTimeoutHTTPClient(DefaultHTTPClient):  # type: ignore
-        REQUEST_TIMEOUT = None
+    class NoTimeoutHTTPClient(DefaultHTTPClient):
+        REQUEST_TIMEOUT = None  # type: ignore
 
     global db
     db = ArangoClient(hosts=con["url"], http_client=NoTimeoutHTTPClient()).db(
