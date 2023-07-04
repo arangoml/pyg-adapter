@@ -527,8 +527,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             edge_definitions = self.etypes_to_edefinitions(edge_types)
             orphan_collections = self.ntypes_to_ocollections(node_types, edge_types)
             adb_graph = self.__db.create_graph(
-                name, edge_definitions, orphan_collections  # type: ignore
-            )
+                name, edge_definitions, orphan_collections
+            )  # type: ignore
 
         # Define PyG data properties
         node_data: NodeStorage
