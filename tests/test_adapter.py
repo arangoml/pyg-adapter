@@ -657,13 +657,15 @@ def test_adb_graph_to_pyg_to_arangodb_with_missing_document_and_strict(
 
     ADBPyG_Adapter(db).pyg_to_arangodb(name, data)
 
-    arango_graph = db.graph(name)
-    v_cols = arango_graph.vertex_collections()
+    graph = db.graph(name)
+    v_cols: Set[str] = graph.vertex_collections()  # type: ignore
+    edge_definitions: List[Json] = graph.edge_definitions()  # type: ignore
+    e_cols: Set[str] = {c["edge_collection"] for c in edge_definitions}
+
     for v_col in v_cols:
         vertex_collection = db.collection(v_col)
         vertex_collection.delete("0")
 
-    e_cols = {col["edge_collection"] for col in arango_graph.edge_definitions()}
     metagraph: ADBMetagraph = {
         "vertexCollections": {col: {} for col in v_cols},
         "edgeCollections": {col: {} for col in e_cols},
@@ -685,13 +687,15 @@ def test_adb_graph_to_pyg_to_arangodb_with_missing_document_and_permissive(
 
     ADBPyG_Adapter(db).pyg_to_arangodb(name, data)
 
-    arango_graph = db.graph(name)
-    v_cols = arango_graph.vertex_collections()
+    graph = db.graph(name)
+    v_cols: Set[str] = graph.vertex_collections()  # type: ignore
+    edge_definitions: List[Json] = graph.edge_definitions()  # type: ignore
+    e_cols: Set[str] = {c["edge_collection"] for c in edge_definitions}
+
     for v_col in v_cols:
         vertex_collection = db.collection(v_col)
         vertex_collection.delete("0")
 
-    e_cols = {col["edge_collection"] for col in arango_graph.edge_definitions()}
     metagraph: ADBMetagraph = {
         "vertexCollections": {col: {} for col in v_cols},
         "edgeCollections": {col: {} for col in e_cols},
@@ -699,7 +703,8 @@ def test_adb_graph_to_pyg_to_arangodb_with_missing_document_and_permissive(
 
     data = adapter.arangodb_to_pyg(name, metagraph=metagraph, strict=False)
 
-    assert len(data.edge_index[0]) < db.collection(list(e_cols)[0]).count()
+    collection_count: int = db.collection(list(e_cols)[0]).count()  # type: ignore
+    assert len(data.edge_index[0]) < collection_count
 
     db.delete_graph(name, drop_collections=True)
 
