@@ -252,9 +252,10 @@ Prerequisite: `arangorestore`
 1. `git clone https://github.com/arangoml/pyg-adapter.git`
 2. `cd pyg-adapter`
 3. (create virtual environment of choice)
-4. `pip install -e .[dev]`
-5. (create an ArangoDB instance with method of choice)
-6. `pytest --url <> --dbName <> --username <> --password <>`
+4. `pip install torch`
+5. `pip install -e .[dev]`
+6. (create an ArangoDB instance with method of choice)
+7. `pytest --url <> --dbName <> --username <> --password <>`
 
 **Note**: A `pytest` parameter can be omitted if the endpoint is using its default value:
 ```python

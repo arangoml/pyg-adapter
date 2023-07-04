@@ -15,6 +15,7 @@ from adbpyg_adapter.typings import (
     ADBMap,
     ADBMetagraph,
     ADBMetagraphValues,
+    Json,
     PyGMap,
     PyGMetagraph,
     PyGMetagraphValues,
@@ -45,7 +46,7 @@ def test_validate_constructor() -> None:
         pass
 
     with pytest.raises(TypeError):
-        ADBPyG_Adapter(bad_db)
+        ADBPyG_Adapter(bad_db)  # type: ignore
 
     with pytest.raises(TypeError):
         ADBPyG_Adapter(db, Bad_ADBPyG_Controller())  # type: ignore
@@ -372,11 +373,11 @@ def test_pyg_to_arangodb_with_controller() -> None:
 
     ADBPyG_Adapter(db, Custom_ADBPyG_Controller()).pyg_to_arangodb(name, data)
 
-    for doc in db.collection(name + "_N"):
+    for doc in db.collection(f"{name}_N"):  # type: ignore
         assert "foo" in doc
         assert doc["foo"] == "bar"
 
-    for edge in db.collection(name + "_E"):
+    for edge in db.collection(f"{name}_E"):  # type: ignore
         assert "bar" in edge
         assert edge["bar"] == "foo"
 
@@ -618,9 +619,10 @@ def test_adb_graph_to_pyg(
 
     pyg_g_new = adapter.arangodb_graph_to_pyg(name)
 
-    arango_graph = db.graph(name)
-    v_cols = arango_graph.vertex_collections()
-    e_cols = {col["edge_collection"] for col in arango_graph.edge_definitions()}
+    graph = db.graph(name)
+    v_cols: Set[str] = graph.vertex_collections()  # type: ignore
+    edge_definitions: List[Json] = graph.edge_definitions()  # type: ignore
+    e_cols: Set[str] = {c["edge_collection"] for c in edge_definitions}
 
     # Manually set the number of nodes (since nodes are feature-less)
     for v_col in v_cols:
@@ -705,10 +707,11 @@ def test_full_cycle_homogeneous_with_preserve_adb_keys() -> None:
 
     pyg_g = adbpyg_adapter.arangodb_graph_to_pyg(name, preserve_adb_keys=True)
 
-    # Establish ground truth
-    arango_graph = db.graph(name)
-    v_cols = arango_graph.vertex_collections()
-    e_cols = {col["edge_collection"] for col in arango_graph.edge_definitions()}
+    graph = db.graph(name)
+    v_cols: Set[str] = graph.vertex_collections()  # type: ignore
+    edge_definitions: List[Json] = graph.edge_definitions()  # type: ignore
+    e_cols: Set[str] = {c["edge_collection"] for c in edge_definitions}
+
     metagraph: ADBMetagraph = {
         "vertexCollections": {col: {} for col in v_cols},
         "edgeCollections": {col: {} for col in e_cols},
@@ -849,8 +852,8 @@ def assert_pyg_to_adb(
         collection = db.collection(e_col)
 
         df = DataFrame(collection.all())
-        df[["from_col", "from_key"]] = df["_from"].str.split("/", 1, True)
-        df[["to_col", "to_key"]] = df["_to"].str.split("/", 1, True)
+        df[["from_col", "from_key"]] = df["_from"].str.split(pat="/", n=1, expand=True)
+        df[["to_col", "to_key"]] = df["_to"].str.split(pat="/", n=1, expand=True)
 
         et_df = df[(df["from_col"] == from_col) & (df["to_col"] == to_col)]
         assert len(et_df) == edge_data.num_edges
@@ -959,8 +962,8 @@ def assert_adb_to_pyg(
         assert collection.count() <= pyg_g.num_edges
 
         df = DataFrame(collection.all())
-        df[["from_col", "from_key"]] = df["_from"].str.split("/", 1, True)
-        df[["to_col", "to_key"]] = df["_to"].str.split("/", 1, True)
+        df[["from_col", "from_key"]] = df["_from"].str.split(pat="/", n=1, expand=True)
+        df[["to_col", "to_key"]] = df["_to"].str.split(pat="/", n=1, expand=True)
 
         for (from_col, to_col), count in (
             df[["from_col", "to_col"]].value_counts().items()
