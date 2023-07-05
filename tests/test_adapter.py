@@ -1066,7 +1066,7 @@ def assert_adb_to_pyg(
 
 
 def assert_adb_to_pyg_meta(
-    meta: Union[str, Dict[str, ADBMetagraphValues]],
+    meta: Union[str, Set[str], Dict[str, ADBMetagraphValues]],
     df: DataFrame,
     pyg_data: Union[NodeStorage, EdgeStorage],
 ) -> None:
