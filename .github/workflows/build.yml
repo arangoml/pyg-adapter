@@ -16,19 +16,15 @@ jobs:
         python: ["3.8", "3.9", "3.10", "3.11"]
     name: Python ${{ matrix.python }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Setup Python ${{ matrix.python }}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python }}
-      - name: Set up ArangoDB Instance via Docker
-        run: docker create --name adb -p 8529:8529 -e ARANGO_ROOT_PASSWORD= arangodb/arangodb
-      - name: Start ArangoDB Instance
-        run: docker start adb
-      - name: Setup pip
-        run: pip install --upgrade pip setuptools wheel
+          cache: 'pip'
+          cache-dependency-path: setup.py
       - name: Install packages
-        run: pip install torch && pip install .[dev]
+        run: pip install torch && pip install -e .[dev]
       - name: Run black
         run: black --check --verbose --diff --color ${{env.PACKAGE_DIR}} ${{env.TESTS_DIR}}
       - name: Run flake8
@@ -37,6 +33,10 @@ jobs:
         run: isort --check --profile=black ${{env.PACKAGE_DIR}} ${{env.TESTS_DIR}}
       - name: Run mypy
         run: mypy ${{env.PACKAGE_DIR}} ${{env.TESTS_DIR}}
+      - name: Set up ArangoDB Instance via Docker
+        run: docker create --name adb -p 8529:8529 -e ARANGO_ROOT_PASSWORD= arangodb/arangodb
+      - name: Start ArangoDB Instance
+        run: docker start adb
       - name: Run pytest
         run: pytest --cov=${{env.PACKAGE_DIR}} --cov-report xml --cov-report term-missing -v --color=yes --no-cov-on-fail --code-highlight=yes
       - name: Publish to coveralls.io
