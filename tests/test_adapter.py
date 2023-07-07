@@ -850,9 +850,9 @@ def test_full_cycle_imdb_with_preserve_adb_keys() -> None:
     pyg_to_adb_metagraph: PyGMetagraph = {
         "nodeTypes": {
             "Users": {"x": ["Age", "Gender"], "_key": "_key"},
-            "Movies": {"_id": "_id"},
+            "Movies": {"_id"}, # Note: we can either use _id or _key here
         },
-        "edgeTypes": {("Users", "Ratings", "Movies"): {"_key": "_key"}},
+        "edgeTypes": {("Users", "Ratings", "Movies"): {"_key"}},
     }
 
     adbpyg_adapter.pyg_to_arangodb(
@@ -860,7 +860,7 @@ def test_full_cycle_imdb_with_preserve_adb_keys() -> None:
         pyg_g,
         pyg_to_adb_metagraph,
         explicit_metagraph=True,
-        on_duplicate="update",
+        on_duplicate="update"
     )
     assert_pyg_to_adb(name, pyg_g, pyg_to_adb_metagraph, True)
 

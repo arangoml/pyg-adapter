@@ -5,6 +5,7 @@ from collections import defaultdict
 from typing import Any, DefaultDict, Dict, List, Set, Union
 
 import torch
+from arango.cursor import Cursor
 from arango.database import Database
 from arango.graph import Graph as ADBGraph
 from pandas import DataFrame, Series
@@ -259,65 +260,90 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         for v_col, meta in metagraph["vertexCollections"].items():
             logger.debug(f"Preparing '{v_col}' vertices")
 
-            df = self.__fetch_adb_docs(v_col, meta == {}, query_options)
-            adb_map[v_col] = {
-                adb_id: pyg_id for pyg_id, adb_id in enumerate(df["_key"])
-            }
-
             node_data: NodeStorage = data if is_homogeneous else data[v_col]
-            self.__set_pyg_data(meta, node_data, df)
 
             if preserve_adb_keys:
-                k = "_v_key" if is_homogeneous else "_key"
-                node_data[k] = list(adb_map[v_col].keys())
+                preserve_key = "_v_key" if is_homogeneous else "_key"
+                node_data[preserve_key] = []
+
+            pyg_id = 0
+            cursor = self.__fetch_adb_docs(v_col, meta == {}, query_options)
+            while not cursor.empty():
+                batch_size = len(cursor.batch())  # type: ignore
+                df = DataFrame([cursor.pop() for _ in range(batch_size)])
+
+                for adb_id in df["_key"]:
+                    adb_map[v_col][adb_id] = pyg_id
+                    pyg_id += 1
+
+                self.__set_pyg_data(meta, node_data, df)
+
+                if preserve_adb_keys:
+                    node_data[preserve_key].extend(list(df["_key"]))
+
+                if cursor.has_more():
+                    cursor.fetch()
 
         et_df: DataFrame
         v_cols: List[str] = list(metagraph["vertexCollections"].keys())
         for e_col, meta in metagraph.get("edgeCollections", {}).items():
             logger.debug(f"Preparing '{e_col}' edges")
 
-            df = self.__fetch_adb_docs(e_col, meta == {}, query_options)
-            df[["from_col", "from_key"]] = self.__split_adb_ids(df["_from"])
-            df[["to_col", "to_key"]] = self.__split_adb_ids(df["_to"])
+            cursor = self.__fetch_adb_docs(e_col, meta == {}, query_options)
+            while not cursor.empty():
+                batch_size = len(cursor.batch())  # type: ignore
+                df = DataFrame([cursor.pop() for _ in range(batch_size)])
 
-            for (from_col, to_col), count in (
-                df[["from_col", "to_col"]].value_counts().items()
-            ):
-                edge_type = (from_col, e_col, to_col)
-                if from_col not in v_cols or to_col not in v_cols:
-                    logger.debug(f"Skipping {edge_type}")
-                    continue  # partial edge collection import to pyg
+                df[["from_col", "from_key"]] = self.__split_adb_ids(df["_from"])
+                df[["to_col", "to_key"]] = self.__split_adb_ids(df["_to"])
 
-                logger.debug(f"Preparing {count} '{edge_type}' edges")
+                for (from_col, to_col), count in (
+                    df[["from_col", "to_col"]].value_counts().items()
+                ):
+                    edge_type = (from_col, e_col, to_col)
+                    edge_data: EdgeStorage = data if is_homogeneous else data[edge_type]
 
-                # Get the edge data corresponding to the current edge type
-                et_df = df[(df["from_col"] == from_col) & (df["to_col"] == to_col)]
-                adb_map[edge_type] = {
-                    adb_id: pyg_id for pyg_id, adb_id in enumerate(et_df["_key"])
-                }
+                    if from_col not in v_cols or to_col not in v_cols:
+                        logger.debug(f"Skipping {edge_type}")
+                        continue  # partial edge collection import to pyg
 
-                from_nodes = et_df["from_key"].map(adb_map[from_col]).tolist()
-                to_nodes = et_df["to_key"].map(adb_map[to_col]).tolist()
+                    logger.debug(f"Preparing {count} '{edge_type}' edges")
 
-                edge_data: EdgeStorage = data if is_homogeneous else data[edge_type]
-                edge_data.edge_index = tensor([from_nodes, to_nodes])
+                    et_df = df[(df["from_col"] == from_col) & (df["to_col"] == to_col)]
 
-                if torch.any(torch.isnan(edge_data.edge_index)):
-                    if strict:
-                        raise InvalidADBEdgesError(
-                            f"Invalid edges found in Edge Collection {e_col}, {from_col} -> {to_col}."  # noqa: E501
-                        )
+                    from_nodes = et_df["from_key"].map(adb_map[from_col]).tolist()
+                    to_nodes = et_df["to_key"].map(adb_map[to_col]).tolist()
+                    edge_index = tensor([from_nodes, to_nodes])
+
+                    if "edge_index" not in edge_data:
+                        edge_data.edge_index = edge_index
                     else:
-                        # Remove the invalid edges
-                        edge_data.edge_index = edge_data.edge_index[
-                            :, ~torch.any(edge_data.edge_index.isnan(), dim=0)
-                        ]
+                        edge_data.edge_index = cat(
+                            (edge_data.edge_index, edge_index), 1
+                        )
 
-                self.__set_pyg_data(meta, edge_data, et_df)
+                    if torch.any(torch.isnan(edge_data.edge_index)):
+                        if strict:
+                            raise InvalidADBEdgesError(
+                                f"Invalid edges found in Edge Collection {e_col}, {from_col} -> {to_col}."  # noqa: E501
+                            )
+                        else:
+                            # Remove the invalid edges
+                            edge_data.edge_index = edge_data.edge_index[
+                                :, ~torch.any(edge_data.edge_index.isnan(), dim=0)
+                            ]
 
-                if preserve_adb_keys:
-                    k = "_e_key" if is_homogeneous else "_key"
-                    edge_data[k] = list(adb_map[edge_type].keys())
+                    self.__set_pyg_data(meta, edge_data, et_df)
+
+                    if preserve_adb_keys:
+                        preserve_key = "_e_key" if is_homogeneous else "_key"
+                        if preserve_key not in edge_data:
+                            edge_data[preserve_key] = []
+
+                        edge_data[preserve_key].extend(list(et_df["_key"]))
+
+                if cursor.has_more():
+                    cursor.fetch()
 
         logger.info(f"Created PyG '{name}' Graph")
         return data
@@ -672,7 +698,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
     def __fetch_adb_docs(
         self, col: str, meta_is_empty: bool, query_options: Any
-    ) -> DataFrame:
+    ) -> Cursor:
         """Fetches ArangoDB documents within a collection. Returns the
             documents in a DataFrame.
 
@@ -703,11 +729,12 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             spinner_style="#40A6F5",
         ) as p:
             p.add_task("__fetch_adb_docs")
-
-            return DataFrame(
-                self.__db.aql.execute(
-                    aql, count=True, bind_vars={"@col": col}, **query_options
-                )
+            return self.__db.aql.execute(  # type: ignore
+                aql,
+                count=True,
+                bind_vars={"@col": col},
+                stream=True,
+                **query_options,
             )
 
     def __insert_adb_docs(
@@ -764,7 +791,15 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         valid_meta = meta if type(meta) is dict else {m: m for m in meta}
 
         for k, v in valid_meta.items():
-            pyg_data[k] = self.__build_tensor_from_dataframe(df, k, v)
+            t = self.__build_tensor_from_dataframe(df, k, v)
+
+            if k not in pyg_data:
+                pyg_data[k] = t
+            elif isinstance(pyg_data[k], Tensor):
+                pyg_data[k] = cat((pyg_data[k], t))
+            else:
+                m = f"'{k}' key in PyG Data must point to a Tensor"
+                raise TypeError(m)
 
     def __set_adb_data(
         self,
@@ -868,7 +903,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             return cat(data, dim=-1)
 
         if callable(meta_val):
-            # **meta_val** is a user-defined that returns a tensor
+            # **meta_val** is a user-defined function that returns a tensor
             user_defined_result = meta_val(adb_df)
 
             if type(user_defined_result) is not Tensor:  # pragma: no cover
