@@ -389,7 +389,7 @@ def test_pyg_to_arangodb_with_controller() -> None:
 
 
 @pytest.mark.parametrize(
-    "adapter, name, metagraph, pyg_g_old",
+    "adapter, name, metagraph, pyg_g_old, batch_size",
     [
         (
             adbpyg_adapter,
@@ -403,6 +403,7 @@ def test_pyg_to_arangodb_with_controller() -> None:
                 },
             },
             get_karate_graph(),
+            3,
         ),
         (
             adbpyg_adapter,
@@ -416,6 +417,7 @@ def test_pyg_to_arangodb_with_controller() -> None:
                 },
             },
             get_fake_homo_graph(avg_num_nodes=3, edge_dim=1),
+            1000,
         ),
         (
             adbpyg_adapter,
@@ -431,6 +433,7 @@ def test_pyg_to_arangodb_with_controller() -> None:
                 },
             },
             get_fake_hetero_graph(avg_num_nodes=2, edge_dim=2),
+            1,
         ),
         (
             adbpyg_adapter,
@@ -446,6 +449,7 @@ def test_pyg_to_arangodb_with_controller() -> None:
                 },
             },
             get_fake_hetero_graph(avg_num_nodes=2, edge_dim=2),
+            None,
         ),
         (
             adbpyg_adapter,
@@ -461,6 +465,7 @@ def test_pyg_to_arangodb_with_controller() -> None:
                 },
             },
             get_fake_hetero_graph(avg_num_nodes=2, edge_dim=2),
+            None,
         ),
         (
             adbpyg_adapter,
@@ -479,6 +484,7 @@ def test_pyg_to_arangodb_with_controller() -> None:
                 },
             },
             get_fake_hetero_graph(avg_num_nodes=2, edge_dim=2),
+            None,
         ),
     ],
 )
@@ -487,12 +493,13 @@ def test_adb_to_pyg(
     name: str,
     metagraph: ADBMetagraph,
     pyg_g_old: Optional[Union[Data, HeteroData]],
+    batch_size: Optional[int]
 ) -> None:
     if pyg_g_old:
         db.delete_graph(name, drop_collections=True, ignore_missing=True)
         adapter.pyg_to_arangodb(name, pyg_g_old)
 
-    pyg_g_new = adapter.arangodb_to_pyg(name, metagraph)
+    pyg_g_new = adapter.arangodb_to_pyg(name, metagraph, batch_size)
     assert_adb_to_pyg(pyg_g_new, metagraph)
 
     if pyg_g_old:
