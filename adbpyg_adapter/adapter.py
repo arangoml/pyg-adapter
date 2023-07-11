@@ -267,7 +267,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 node_data[preserve_key] = []
 
             pyg_id = 0
-            cursor = self.__fetch_adb_docs(v_col, meta == {}, query_options)
+            cursor = self.__fetch_adb_docs(v_col, meta, query_options)
             while not cursor.empty():
                 batch_size = len(cursor.batch())  # type: ignore
                 df = DataFrame([cursor.pop() for _ in range(batch_size)])
@@ -289,7 +289,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         for e_col, meta in metagraph.get("edgeCollections", {}).items():
             logger.debug(f"Preparing '{e_col}' edges")
 
-            cursor = self.__fetch_adb_docs(e_col, meta == {}, query_options)
+            cursor = self.__fetch_adb_docs(e_col, meta, query_options)
             while not cursor.empty():
                 batch_size = len(cursor.batch())  # type: ignore
                 df = DataFrame([cursor.pop() for _ in range(batch_size)])
@@ -697,31 +697,53 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         return list(orphan_collections)
 
     def __fetch_adb_docs(
-        self, col: str, meta_is_empty: bool, query_options: Any
+        self,
+        col: str,
+        meta: Union[Set[str], Dict[str, ADBMetagraphValues]],
+        query_options: Any,
     ) -> Cursor:
         """Fetches ArangoDB documents within a collection. Returns the
             documents in a DataFrame.
 
         :param col: The ArangoDB collection.
         :type col: str
-        :param meta_is_empty: Set to True if the metagraph specification
-            for **col** is empty.
-        :type meta_is_empty: bool
+        :param meta: The MetaGraph associated to **col**
+        :type meta: Set[str] | Dict[str, adbpyg_adapter.typings.ADBMetagraphValues]
         :param query_options: Keyword arguments to specify AQL query options
             when fetching documents from the ArangoDB instance.
         :type query_options: Any
         :return: A DataFrame representing the ArangoDB documents.
         :rtype: pandas.DataFrame
         """
-        # Only return the entire document if **meta_is_empty** is False
-        aql = f"""
-            FOR doc IN @@col
-                RETURN {
-                    "{ _key: doc._key, _from: doc._from, _to: doc._to }"
-                    if meta_is_empty
-                    else "doc"
-                }
-        """
+
+        def get_aql_return_value(
+            meta: Union[Set[str], Dict[str, ADBMetagraphValues]]
+        ) -> str:
+            """Helper method to formulate the AQL `RETURN` value based on
+            the document attributes specified in **meta**
+            """
+            attributes = []
+
+            if type(meta) is set:
+                attributes = list(meta)
+
+            elif type(meta) is dict:
+                for value in meta.values():
+                    if type(value) is str:
+                        attributes.append(value)
+                    elif type(value) is dict:
+                        attributes.extend(list(value.keys()))
+                    elif callable(value):
+                        # Cannot determine which attributes to extract if UDFs are used
+                        # Therefore we just return the entire document
+                        return "doc"
+
+            return f"""
+                MERGE(
+                    {{ _key: doc._key, _from: doc._from, _to: doc._to }},
+                    KEEP(doc, {list(attributes)})
+                )
+            """
 
         with progress(
             f"(ADB → PyG): {col}",
@@ -730,7 +752,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         ) as p:
             p.add_task("__fetch_adb_docs")
             return self.__db.aql.execute(  # type: ignore
-                aql,
+                f"FOR doc IN @@col RETURN {get_aql_return_value(meta)}",
                 count=True,
                 bind_vars={"@col": col},
                 stream=True,
