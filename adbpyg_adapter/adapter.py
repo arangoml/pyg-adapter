@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 import logging
 from collections import defaultdict
-from typing import Any, DefaultDict, Dict, List, Set, Union
+from math import ceil
+from typing import Any, DefaultDict, Dict, List, Optional, Set, Union
 
 import torch
 from arango.cursor import Cursor
@@ -269,8 +270,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             pyg_id = 0
             cursor = self.__fetch_adb_docs(v_col, meta, query_options)
             while not cursor.empty():
-                batch_size = len(cursor.batch())  # type: ignore
-                df = DataFrame([cursor.pop() for _ in range(batch_size)])
+                cursor_batch = len(cursor.batch())  # type: ignore
+                df = DataFrame([cursor.pop() for _ in range(cursor_batch)])
 
                 for adb_id in df["_key"]:
                     adb_map[v_col][adb_id] = pyg_id
@@ -284,6 +285,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 if cursor.has_more():
                     cursor.fetch()
 
+                df.drop(df.index, inplace=True)
+
         et_df: DataFrame
         v_cols: List[str] = list(metagraph["vertexCollections"].keys())
         for e_col, meta in metagraph.get("edgeCollections", {}).items():
@@ -291,8 +294,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
             cursor = self.__fetch_adb_docs(e_col, meta, query_options)
             while not cursor.empty():
-                batch_size = len(cursor.batch())  # type: ignore
-                df = DataFrame([cursor.pop() for _ in range(batch_size)])
+                cursor_batch = len(cursor.batch())  # type: ignore
+                df = DataFrame([cursor.pop() for _ in range(cursor_batch)])
 
                 df[["from_col", "from_key"]] = self.__split_adb_ids(df["_from"])
                 df[["to_col", "to_key"]] = self.__split_adb_ids(df["_to"])
@@ -315,12 +318,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                     to_nodes = et_df["to_key"].map(adb_map[to_col]).tolist()
                     edge_index = tensor([from_nodes, to_nodes])
 
-                    if "edge_index" not in edge_data:
-                        edge_data.edge_index = edge_index
-                    else:
-                        edge_data.edge_index = cat(
-                            (edge_data.edge_index, edge_index), 1
-                        )
+                    edge_data.edge_index = torch.cat(
+                        (edge_data.get("edge_index", tensor([])), edge_index), dim=1
+                    )
 
                     if torch.any(torch.isnan(edge_data.edge_index)):
                         if strict:
@@ -344,6 +344,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
                 if cursor.has_more():
                     cursor.fetch()
+
+                df.drop(df.index, inplace=True)
 
         logger.info(f"Created PyG '{name}' Graph")
         return data
@@ -442,6 +444,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         metagraph: PyGMetagraph = {},
         explicit_metagraph: bool = True,
         overwrite_graph: bool = False,
+        batch_size: Optional[int] = None,
         **import_options: Any,
     ) -> ADBGraph:
         """Create an ArangoDB graph from a PyG graph.
@@ -482,6 +485,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :param overwrite_graph: Overwrites the graph if it already exists.
             Does not drop associated collections. Defaults to False.
         :type overwrite_graph: bool
+        :param batch_size: Process the PyG Nodes & Edges in batches of size
+            **batch_size**. Defaults to `None`, which processes each
+            NodeStorage & EdgeStorage in one batch.
+        :type batch_size: int
         :param import_options: Keyword arguments to specify additional
             parameters for ArangoDB document insertion. Full parameter list:
             https://docs.python-arango.com/en/main/specs.html#arango.collection.Collection.import_bulk
@@ -529,6 +536,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         logger.debug(f"--pyg_to_arangodb('{name}')--")
 
         validate_pyg_metagraph(metagraph)
+        is_custom_controller = type(self.__cntrl) is not ADBPyG_Controller
 
         is_homogeneous = type(pyg_g) is Data
         if is_homogeneous and pyg_g.num_nodes == pyg_g.num_edges and not metagraph:
@@ -552,9 +560,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             edge_types = metagraph.get("edgeTypes", {}).keys()  # type: ignore
 
         elif is_homogeneous:
-            n_type = name + "_N"
+            n_type = f"{name}_N"
             node_types = [n_type]
-            edge_types = [(n_type, name + "_E", n_type)]
+            edge_types = [(n_type, f"{name}_E", n_type)]
 
         else:
             node_types = pyg_g.node_types
@@ -579,53 +587,89 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         n_meta = metagraph.get("nodeTypes", {})
         for n_type in node_types:
-            node_data = pyg_g if is_homogeneous else pyg_g[n_type]
-
             meta = n_meta.get(n_type, {})
-            empty_df = DataFrame(index=range(node_data.num_nodes))
-            df = self.__set_adb_data(empty_df, meta, node_data, explicit_metagraph)
 
-            if "_id" in df:
-                pyg_map[n_type] = df["_id"].to_dict()
-            else:
-                if "_key" not in df:
-                    df["_key"] = df.index.astype(str)
+            node_data = pyg_g if is_homogeneous else pyg_g[n_type]
+            node_data_batch_size = batch_size or node_data.num_nodes
 
-                pyg_map[n_type] = (n_type + "/" + df["_key"]).to_dict()
+            start_index = 0
+            end_index = min(node_data_batch_size, node_data.num_nodes)
+            batches = ceil(node_data.num_nodes / node_data_batch_size)
 
-            if type(self.__cntrl) is not ADBPyG_Controller:
-                f = lambda n: self.__cntrl._prepare_pyg_node(n, n_type)
-                df = df.apply(f, axis=1)
+            for _ in range(batches):
+                df = self.__set_adb_data(
+                    DataFrame(index=range(start_index, end_index)),
+                    meta,
+                    node_data,
+                    node_data.num_nodes,
+                    start_index,
+                    end_index,
+                    explicit_metagraph,
+                )
 
-            self.__insert_adb_docs(n_type, df, import_options)
+                if "_id" in df:
+                    pyg_map[n_type].update(df["_id"].to_dict())
+                else:
+                    df["_key"] = df.get("_key", df.index.astype(str))
+                    pyg_map[n_type].update((n_type + "/" + df["_key"]).to_dict())
+
+                if is_custom_controller:
+                    f = lambda n: self.__cntrl._prepare_pyg_node(n, n_type)
+                    df = df.apply(f, axis=1)
+
+                self.__insert_adb_docs(n_type, df, import_options)
+
+                start_index = end_index
+                end_index = min(end_index + node_data_batch_size, node_data.num_nodes)
 
         e_meta = metagraph.get("edgeTypes", {})
         for e_type in edge_types:
-            edge_data = pyg_g if is_homogeneous else pyg_g[e_type]
+            meta = e_meta.get(e_type, {})
             src_n_type, _, dst_n_type = e_type
 
-            columns = ["_from", "_to"]
-            meta = e_meta.get(e_type, {})
-            df = DataFrame(zip(*(edge_data.edge_index.tolist())), columns=columns)
-            df = self.__set_adb_data(df, meta, edge_data, explicit_metagraph)
+            edge_data = pyg_g if is_homogeneous else pyg_g[e_type]
+            edge_data_batch_size = batch_size or edge_data.num_edges
 
-            df["_from"] = (
-                df["_from"].map(pyg_map[src_n_type])
-                if pyg_map[src_n_type]
-                else src_n_type + "/" + df["_from"].astype(str)
-            )
+            start_index = 0
+            end_index = min(edge_data_batch_size, edge_data.num_edges)
+            batches = ceil(edge_data.num_edges / edge_data_batch_size)
 
-            df["_to"] = (
-                df["_to"].map(pyg_map[dst_n_type])
-                if pyg_map[dst_n_type]
-                else dst_n_type + "/" + df["_to"].astype(str)
-            )
+            for _ in range(batches):
+                edge_index = edge_data.edge_index[:, start_index:end_index]
+                df = self.__set_adb_data(
+                    DataFrame(
+                        zip(*(edge_index.tolist())),
+                        index=range(start_index, end_index),
+                        columns=["_from", "_to"],
+                    ),
+                    meta,
+                    edge_data,
+                    edge_data.num_edges,
+                    start_index,
+                    end_index,
+                    explicit_metagraph,
+                )
 
-            if type(self.__cntrl) is not ADBPyG_Controller:
-                f = lambda e: self.__cntrl._prepare_pyg_edge(e, e_type)
-                df = df.apply(f, axis=1)
+                df["_from"] = (
+                    df["_from"].map(pyg_map[src_n_type])
+                    if pyg_map[src_n_type]
+                    else src_n_type + "/" + df["_from"].astype(str)
+                )
 
-            self.__insert_adb_docs(e_type, df, import_options)
+                df["_to"] = (
+                    df["_to"].map(pyg_map[dst_n_type])
+                    if pyg_map[dst_n_type]
+                    else dst_n_type + "/" + df["_to"].astype(str)
+                )
+
+                if is_custom_controller:
+                    f = lambda e: self.__cntrl._prepare_pyg_edge(e, e_type)
+                    df = df.apply(f, axis=1)
+
+                self.__insert_adb_docs(e_type, df, import_options)
+
+                start_index = end_index
+                end_index = min(end_index + edge_data_batch_size, edge_data.num_edges)
 
         logger.info(f"Created ArangoDB '{name}' Graph")
         return adb_graph
@@ -784,6 +828,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             docs = df.to_dict("records")
             result = self.__db.collection(col).import_bulk(docs, **kwargs)
             logger.debug(result)
+            df.drop(df.index, inplace=True)
 
     def __split_adb_ids(self, s: Series) -> Series:
         """Helper method to split the ArangoDB IDs within a Series into two columns"""
@@ -828,6 +873,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         df: DataFrame,
         meta: Union[Set[str], Dict[Any, PyGMetagraphValues]],
         pyg_data: Union[Data, NodeStorage, EdgeStorage],
+        pyg_data_size: int,
+        start_index: int,
+        end_index: int,
         explicit_metagraph: bool,
     ) -> DataFrame:
         """A helper method to build the ArangoDB Dataframe for the given
@@ -844,6 +892,14 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :type meta: Set[str] | Dict[Any, adbpyg_adapter.typings.PyGMetagraphValues]
         :param pyg_data: The NodeStorage or EdgeStorage of the current
             PyG node or edge type.
+        :type pyg_data: torch_geometric.data.storage.(NodeStorage | EdgeStorage)
+        :param pyg_data_size: The size of the NodeStorage or EdgeStorage of the
+            current PyG node or edge type.
+        :type pyg_data_size: int
+        :param start_index: The starting index of the current batch to process.
+        :type start_index: int
+        :param end_index: The ending index of the current batch to process.
+        :type end_index: int
         :type pyg_data: torch_geometric.data.storage.(NodeStorage | EdgeStorage)
         :param explicit_metagraph: The value of **explicit_metagraph**
             in **pyg_to_arangodb**.
@@ -862,24 +918,34 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         if explicit_metagraph:
             pyg_keys = set(valid_meta.keys())
         else:
-            # can't do keys() (not compatible with Homogeneous graphs)
+            # can't do pyg_data.keys() (not compatible with Homogeneous graphs)
             pyg_keys = set(k for k, _ in pyg_data.items())
 
-        for k in pyg_keys:
-            if k == "edge_index":
+        for meta_key in pyg_keys:
+            if meta_key == "edge_index":
                 continue
 
-            data = pyg_data[k]
-            meta_val = valid_meta.get(k, str(k))
+            data = pyg_data[meta_key]
+            meta_val = valid_meta.get(meta_key, str(meta_key))
 
-            if type(meta_val) is str and type(data) is list and len(data) == len(df):
-                if meta_val in ["_v_key", "_e_key"]:  # Homogeneous situation
-                    meta_val = "_key"
+            if (
+                type(meta_val) is str
+                and type(data) is list
+                and len(data) == pyg_data_size
+            ):
+                meta_val = "_key" if meta_val in ["_v_key", "_e_key"] else meta_val
+                df = df.join(DataFrame(data[start_index:end_index], columns=[meta_val]))
 
-                df = df.join(DataFrame(data, columns=[meta_val]))
-
-            if type(data) is Tensor and len(data) == len(df):
-                df = df.join(self.__build_dataframe_from_tensor(data, k, meta_val))
+            if type(data) is Tensor and len(data) == pyg_data_size:
+                df = df.join(
+                    self.__build_dataframe_from_tensor(
+                        data[start_index:end_index],
+                        start_index,
+                        end_index,
+                        meta_key,
+                        meta_val,
+                    )
+                )
 
         return df
 
@@ -939,6 +1005,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
     def __build_dataframe_from_tensor(
         self,
         pyg_tensor: Tensor,
+        start_index: int,
+        end_index: int,
         meta_key: Any,
         meta_val: PyGMetagraphValues,
     ) -> DataFrame:
@@ -947,6 +1015,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         :param pyg_tensor: The Tensor representing PyG data.
         :type pyg_tensor: torch.Tensor
+        :param start_index: The starting index of the current batch to process.
+        :type start_index: int
+        :param end_index: The ending index of the current batch to process.
+        :type end_index: int
         :param meta_key: The current PyG-ArangoDB metagraph key
         :type meta_key: Any
         :param meta_val: The value mapped to the PyG-ArangoDB metagraph key to
@@ -962,7 +1034,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         )
 
         if type(meta_val) is str:
-            df = DataFrame(columns=[meta_val])
+            df = DataFrame(index=range(start_index, end_index), columns=[meta_val])
             df[meta_val] = pyg_tensor.tolist()
             return df
 
@@ -976,7 +1048,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 """
                 raise PyGMetagraphError(msg)
 
-            df = DataFrame(columns=meta_val)
+            df = DataFrame(index=range(start_index, end_index), columns=meta_val)
             df[meta_val] = pyg_tensor.tolist()
             return df
 
