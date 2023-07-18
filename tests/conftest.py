@@ -6,7 +6,6 @@ from typing import Any, Callable, Dict
 
 from arango import ArangoClient
 from arango.database import StandardDatabase
-from arango.http import DefaultHTTPClient
 from pandas import DataFrame
 from torch import Tensor, tensor
 from torch_geometric.data import Data, HeteroData
