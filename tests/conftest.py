@@ -45,7 +45,7 @@ def pytest_configure(config: Any) -> None:
     print("----------------------------------------")
 
     global db
-    db = ArangoClient(hosts=con["url"], request_timeout=None).db(
+    db = ArangoClient(hosts=con["url"]).db(
         con["dbName"], con["username"], con["password"], verify=True
     )
 
