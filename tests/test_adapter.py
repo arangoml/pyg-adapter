@@ -10,7 +10,11 @@ from torch_geometric.typing import EdgeType
 
 from adbpyg_adapter import ADBPyG_Adapter
 from adbpyg_adapter.encoders import CategoricalEncoder, IdentityEncoder
-from adbpyg_adapter.exceptions import ADBMetagraphError, PyGMetagraphError
+from adbpyg_adapter.exceptions import (
+    ADBMetagraphError,
+    InvalidADBEdgesError,
+    PyGMetagraphError,
+)
 from adbpyg_adapter.typings import (
     ADBMap,
     ADBMetagraph,
@@ -643,6 +647,68 @@ def test_adb_graph_to_pyg(
         db.delete_graph(name, drop_collections=True)
 
 
+@pytest.mark.parametrize("adapter", [adbpyg_adapter])
+def test_adb_graph_to_pyg_to_arangodb_with_missing_document_and_strict(
+    adapter: ADBPyG_Adapter,
+) -> None:
+    name = "Karate_3"
+    data = get_karate_graph()
+    db.delete_graph(name, drop_collections=True, ignore_missing=True)
+
+    ADBPyG_Adapter(db).pyg_to_arangodb(name, data)
+
+    graph = db.graph(name)
+    v_cols: Set[str] = graph.vertex_collections()  # type: ignore
+    edge_definitions: List[Json] = graph.edge_definitions()  # type: ignore
+    e_cols: Set[str] = {c["edge_collection"] for c in edge_definitions}
+
+    for v_col in v_cols:
+        vertex_collection = db.collection(v_col)
+        vertex_collection.delete("0")
+
+    metagraph: ADBMetagraph = {
+        "vertexCollections": {col: {} for col in v_cols},
+        "edgeCollections": {col: {} for col in e_cols},
+    }
+
+    with pytest.raises(InvalidADBEdgesError):
+        adapter.arangodb_to_pyg(name, metagraph=metagraph, strict=True)
+
+    db.delete_graph(name, drop_collections=True)
+
+
+@pytest.mark.parametrize("adapter", [adbpyg_adapter])
+def test_adb_graph_to_pyg_to_arangodb_with_missing_document_and_permissive(
+    adapter: ADBPyG_Adapter,
+) -> None:
+    name = "Karate_3"
+    data = get_karate_graph()
+    db.delete_graph(name, drop_collections=True, ignore_missing=True)
+
+    ADBPyG_Adapter(db).pyg_to_arangodb(name, data)
+
+    graph = db.graph(name)
+    v_cols: Set[str] = graph.vertex_collections()  # type: ignore
+    edge_definitions: List[Json] = graph.edge_definitions()  # type: ignore
+    e_cols: Set[str] = {c["edge_collection"] for c in edge_definitions}
+
+    for v_col in v_cols:
+        vertex_collection = db.collection(v_col)
+        vertex_collection.delete("0")
+
+    metagraph: ADBMetagraph = {
+        "vertexCollections": {col: {} for col in v_cols},
+        "edgeCollections": {col: {} for col in e_cols},
+    }
+
+    data = adapter.arangodb_to_pyg(name, metagraph=metagraph, strict=False)
+
+    collection_count: int = db.collection(list(e_cols)[0]).count()  # type: ignore
+    assert len(data.edge_index[0]) < collection_count
+
+    db.delete_graph(name, drop_collections=True)
+
+
 def test_full_cycle_imdb_without_preserve_adb_keys() -> None:
     name = "imdb"
     db.delete_graph(name, drop_collections=True, ignore_missing=True)
@@ -1000,7 +1066,7 @@ def assert_adb_to_pyg(
 
 
 def assert_adb_to_pyg_meta(
-    meta: Union[str, Dict[str, ADBMetagraphValues]],
+    meta: Union[str, Set[str], Dict[str, ADBMetagraphValues]],
     df: DataFrame,
     pyg_data: Union[NodeStorage, EdgeStorage],
 ) -> None:

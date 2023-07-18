@@ -4,6 +4,7 @@ import logging
 from collections import defaultdict
 from typing import Any, DefaultDict, Dict, List, Set, Union
 
+import torch
 from arango.database import Database
 from arango.graph import Graph as ADBGraph
 from pandas import DataFrame, Series
@@ -14,7 +15,7 @@ from torch_geometric.typing import EdgeType
 
 from .abc import Abstract_ADBPyG_Adapter
 from .controller import ADBPyG_Controller
-from .exceptions import ADBMetagraphError, PyGMetagraphError
+from .exceptions import ADBMetagraphError, InvalidADBEdgesError, PyGMetagraphError
 from .typings import (
     ADBMap,
     ADBMetagraph,
@@ -79,6 +80,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         name: str,
         metagraph: ADBMetagraph,
         preserve_adb_keys: bool = False,
+        strict: bool = True,
         **query_options: Any,
     ) -> Union[Data, HeteroData]:
         """Create a PyG graph from ArangoDB data. DOES carry
@@ -127,6 +129,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             ArangoDB graph is Heterogeneous, the ArangoDB keys will be preserved
             under `_key` in your PyG graph.
         :type preserve_adb_keys: bool
+        :param strict: Set fault tolerance when loading a graph from ArangoDB. If set
+            to false, this will ignore invalid edges (e.g. dangling/half edges).
+        :type strict: bool
         :param query_options: Keyword arguments to specify AQL query options when
             fetching documents from the ArangoDB instance. Full parameter list:
             https://docs.python-arango.com/en/main/specs.html#arango.aql.AQL.execute
@@ -296,6 +301,18 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
                 edge_data: EdgeStorage = data if is_homogeneous else data[edge_type]
                 edge_data.edge_index = tensor([from_nodes, to_nodes])
+
+                if torch.any(torch.isnan(edge_data.edge_index)):
+                    if strict:
+                        raise InvalidADBEdgesError(
+                            f"Invalid edges found in Edge Collection {e_col}, {from_col} -> {to_col}."  # noqa: E501
+                        )
+                    else:
+                        # Remove the invalid edges
+                        edge_data.edge_index = edge_data.edge_index[
+                            :, ~torch.any(edge_data.edge_index.isnan(), dim=0)
+                        ]
+
                 self.__set_pyg_data(meta, edge_data, et_df)
 
                 if preserve_adb_keys:
@@ -654,28 +671,28 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         return list(orphan_collections)
 
     def __fetch_adb_docs(
-        self, col: str, empty_meta: bool, query_options: Any
+        self, col: str, meta_is_empty: bool, query_options: Any
     ) -> DataFrame:
         """Fetches ArangoDB documents within a collection. Returns the
             documents in a DataFrame.
 
         :param col: The ArangoDB collection.
         :type col: str
-        :param empty_meta: Set to True if the metagraph specification
+        :param meta_is_empty: Set to True if the metagraph specification
             for **col** is empty.
-        :type empty_meta: bool
+        :type meta_is_empty: bool
         :param query_options: Keyword arguments to specify AQL query options
             when fetching documents from the ArangoDB instance.
         :type query_options: Any
         :return: A DataFrame representing the ArangoDB documents.
         :rtype: pandas.DataFrame
         """
-        # Only return the entire document if **empty_meta** is False
+        # Only return the entire document if **meta_is_empty** is False
         aql = f"""
             FOR doc IN @@col
                 RETURN {
                     "{ _key: doc._key, _from: doc._from, _to: doc._to }"
-                    if empty_meta
+                    if meta_is_empty
                     else "doc"
                 }
         """
