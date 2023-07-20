@@ -797,10 +797,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             p.add_task("__fetch_adb_docs")
             return self.__db.aql.execute(  # type: ignore
                 f"FOR doc IN @@col RETURN {get_aql_return_value(meta)}",
-                count=True,
                 bind_vars={"@col": col},
-                stream=True,
-                **query_options,
+                **{**{"stream": True}, **query_options},
             )
 
     def __insert_adb_docs(
