@@ -53,11 +53,11 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
     ):
         self.set_logging(logging_lvl)
 
-        if not issubclass(type(db), Database):
+        if not isinstance(db, Database):
             msg = "**db** parameter must inherit from arango.database.Database"
             raise TypeError(msg)
 
-        if not issubclass(type(controller), ADBPyG_Controller):
+        if not isinstance(controller, ADBPyG_Controller):
             msg = "**controller** parameter must inherit from ADBPyG_Controller"
             raise TypeError(msg)
 
