@@ -862,7 +862,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 pyg_data[k] = t
             elif isinstance(pyg_data[k], Tensor):
                 pyg_data[k] = cat((pyg_data[k], t))
-            else:
+            else:  # pragma: no cover
                 m = f"'{k}' key in PyG Data must point to a Tensor"
                 raise TypeError(m)
 
