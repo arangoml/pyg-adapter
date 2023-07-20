@@ -233,7 +233,7 @@ def test_validate_pyg_metagraph(bad_metagraph: Dict[Any, Any]) -> None:
 
 @pytest.mark.parametrize(
     "adapter, name, pyg_g, metagraph, \
-        explicit_metagraph, overwrite_graph, import_options",
+        explicit_metagraph, overwrite_graph, batch_size, import_options",
     [
         (
             adbpyg_adapter,
@@ -242,6 +242,7 @@ def test_validate_pyg_metagraph(bad_metagraph: Dict[Any, Any]) -> None:
             {"nodeTypes": {"Karate_1_N": {"x": "node_features"}}},
             False,
             False,
+            33,
             {},
         ),
         (
@@ -251,6 +252,7 @@ def test_validate_pyg_metagraph(bad_metagraph: Dict[Any, Any]) -> None:
             {"nodeTypes": {"Karate_2_N": {"x": "node_features"}}},
             True,
             False,
+            1000,
             {},
         ),
         (
@@ -260,6 +262,7 @@ def test_validate_pyg_metagraph(bad_metagraph: Dict[Any, Any]) -> None:
             {"nodeTypes": {"FakeHomoGraph_1_N": {"y": "label"}}},
             False,
             False,
+            1,
             {},
         ),
         (
@@ -269,6 +272,7 @@ def test_validate_pyg_metagraph(bad_metagraph: Dict[Any, Any]) -> None:
             {},
             False,
             False,
+            1000,
             {},
         ),
         (
@@ -278,6 +282,7 @@ def test_validate_pyg_metagraph(bad_metagraph: Dict[Any, Any]) -> None:
             {},
             True,
             False,
+            None,
             {},
         ),
         (
@@ -294,6 +299,7 @@ def test_validate_pyg_metagraph(bad_metagraph: Dict[Any, Any]) -> None:
             },
             True,
             False,
+            None,
             {},
         ),
         (
@@ -307,6 +313,7 @@ def test_validate_pyg_metagraph(bad_metagraph: Dict[Any, Any]) -> None:
             },
             True,
             False,
+            None,
             {},
         ),
         (
@@ -316,6 +323,7 @@ def test_validate_pyg_metagraph(bad_metagraph: Dict[Any, Any]) -> None:
             {},
             False,
             False,
+            1,
             {},
         ),
         (
@@ -325,15 +333,17 @@ def test_validate_pyg_metagraph(bad_metagraph: Dict[Any, Any]) -> None:
             {"nodeTypes": {"v2": {"x": udf_v2_x_tensor_to_df}}},
             True,
             False,
+            1000,
             {},
         ),
         (
             adbpyg_adapter,
-            "FakeHeteroGraph_2",
+            "FakeHeteroGraph_3",
             get_fake_hetero_graph(avg_num_nodes=2),
             {"nodeTypes": {"v0": {"x", "y"}, "v2": {"x"}}},
             True,
             False,
+            None,
             {},
         ),
         (
@@ -343,6 +353,7 @@ def test_validate_pyg_metagraph(bad_metagraph: Dict[Any, Any]) -> None:
             {"nodeTypes": {"user": {"x": ["age", "gender"]}}},
             False,
             True,
+            None,
             {},
         ),
     ],
@@ -354,11 +365,18 @@ def test_pyg_to_adb(
     metagraph: PyGMetagraph,
     explicit_metagraph: bool,
     overwrite_graph: bool,
+    batch_size: Optional[int],
     import_options: Any,
 ) -> None:
     db.delete_graph(name, drop_collections=True, ignore_missing=True)
     adapter.pyg_to_arangodb(
-        name, pyg_g, metagraph, explicit_metagraph, overwrite_graph, **import_options
+        name,
+        pyg_g,
+        metagraph,
+        explicit_metagraph,
+        overwrite_graph,
+        batch_size,
+        **import_options,
     )
     assert_pyg_to_adb(name, pyg_g, metagraph, explicit_metagraph)
     db.delete_graph(name, drop_collections=True)
@@ -389,7 +407,7 @@ def test_pyg_to_arangodb_with_controller() -> None:
 
 
 @pytest.mark.parametrize(
-    "adapter, name, metagraph, pyg_g_old",
+    "adapter, name, metagraph, pyg_g_old, batch_size",
     [
         (
             adbpyg_adapter,
@@ -403,6 +421,7 @@ def test_pyg_to_arangodb_with_controller() -> None:
                 },
             },
             get_karate_graph(),
+            33,
         ),
         (
             adbpyg_adapter,
@@ -416,6 +435,7 @@ def test_pyg_to_arangodb_with_controller() -> None:
                 },
             },
             get_fake_homo_graph(avg_num_nodes=3, edge_dim=1),
+            1,
         ),
         (
             adbpyg_adapter,
@@ -431,6 +451,7 @@ def test_pyg_to_arangodb_with_controller() -> None:
                 },
             },
             get_fake_hetero_graph(avg_num_nodes=2, edge_dim=2),
+            1000,
         ),
         (
             adbpyg_adapter,
@@ -446,6 +467,7 @@ def test_pyg_to_arangodb_with_controller() -> None:
                 },
             },
             get_fake_hetero_graph(avg_num_nodes=2, edge_dim=2),
+            None,
         ),
         (
             adbpyg_adapter,
@@ -461,6 +483,7 @@ def test_pyg_to_arangodb_with_controller() -> None:
                 },
             },
             get_fake_hetero_graph(avg_num_nodes=2, edge_dim=2),
+            None,
         ),
         (
             adbpyg_adapter,
@@ -479,6 +502,7 @@ def test_pyg_to_arangodb_with_controller() -> None:
                 },
             },
             get_fake_hetero_graph(avg_num_nodes=2, edge_dim=2),
+            None,
         ),
     ],
 )
@@ -487,12 +511,13 @@ def test_adb_to_pyg(
     name: str,
     metagraph: ADBMetagraph,
     pyg_g_old: Optional[Union[Data, HeteroData]],
+    batch_size: Optional[int],
 ) -> None:
     if pyg_g_old:
         db.delete_graph(name, drop_collections=True, ignore_missing=True)
         adapter.pyg_to_arangodb(name, pyg_g_old)
 
-    pyg_g_new = adapter.arangodb_to_pyg(name, metagraph)
+    pyg_g_new = adapter.arangodb_to_pyg(name, metagraph, batch_size=batch_size)
     assert_adb_to_pyg(pyg_g_new, metagraph)
 
     if pyg_g_old:
@@ -850,9 +875,9 @@ def test_full_cycle_imdb_with_preserve_adb_keys() -> None:
     pyg_to_adb_metagraph: PyGMetagraph = {
         "nodeTypes": {
             "Users": {"x": ["Age", "Gender"], "_key": "_key"},
-            "Movies": {"_id": "_id"},
+            "Movies": {"_id"},  # Note: we can either use _id or _key here
         },
-        "edgeTypes": {("Users", "Ratings", "Movies"): {"_key": "_key"}},
+        "edgeTypes": {("Users", "Ratings", "Movies"): {"_key"}},
     }
 
     adbpyg_adapter.pyg_to_arangodb(

@@ -6,7 +6,6 @@ from typing import Any, Callable, Dict
 
 from arango import ArangoClient
 from arango.database import StandardDatabase
-from arango.http import DefaultHTTPClient
 from pandas import DataFrame
 from torch import Tensor, tensor
 from torch_geometric.data import Data, HeteroData
@@ -45,11 +44,8 @@ def pytest_configure(config: Any) -> None:
     print("Database: " + con["dbName"])
     print("----------------------------------------")
 
-    class NoTimeoutHTTPClient(DefaultHTTPClient):
-        REQUEST_TIMEOUT = None  # type: ignore
-
     global db
-    db = ArangoClient(hosts=con["url"], http_client=NoTimeoutHTTPClient()).db(
+    db = ArangoClient(hosts=con["url"]).db(
         con["dbName"], con["username"], con["password"], verify=True
     )
 
