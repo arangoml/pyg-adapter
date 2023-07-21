@@ -79,20 +79,25 @@ Note: If the PyG graph contains `_key`, `_v_key`, or `_e_key` properties for any
 adb_g = adbpyg_adapter.pyg_to_arangodb("FakeData", data)
 
 # 1.2: PyG to ArangoDB with a (completely optional) metagraph for customized adapter behaviour
-def y_tensor_to_2_column_dataframe(pyg_tensor):
+def y_tensor_to_2_column_dataframe(pyg_tensor, adb_df):
     """
     A user-defined function to create two
-    ArangoDB attributes out of the 'y' label tensor
+    ArangoDB attributes out of the 'user' label tensor
 
-    NOTE: user-defined functions must return a Pandas Dataframe
+    :param dgl_tensor: The DGL Tensor containing the data
+    :type dgl_tensor: torch.Tensor
+    :param adb_df: The ArangoDB DataFrame to populate, whose
+        size is preset to the length of **dgl_tensor**.
+    :type adb_df: pandas.DataFrame
+
+    NOTE: user-defined functions must return the modified **adb_df**
     """
     label_map = {0: "Kiwi", 1: "Blueberry", 2: "Avocado"}
 
-    df = pandas.DataFrame(columns=["label_num", "label_str"])
-    df["label_num"] = pyg_tensor.tolist()
-    df["label_str"] = df["label_num"].map(label_map)
+    adb_df["label_num"] = pyg_tensor.tolist()
+    adb_df["label_str"] = adb_df["label_num"].map(label_map)
 
-    return df
+    return adb_df
 
 
 metagraph = {

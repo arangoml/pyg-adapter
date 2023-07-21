@@ -500,16 +500,15 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         **metagraph** example
 
         .. code-block:: python
-        def y_tensor_to_2_column_dataframe(pyg_tensor):
+        def y_tensor_to_2_column_dataframe(pyg_tensor, adb_df):
             # A user-defined function to create two ArangoDB attributes
             # out of the 'y' label tensor
             label_map = {0: "Kiwi", 1: "Blueberry", 2: "Avocado"}
 
-            df = pandas.DataFrame(columns=["label_num", "label_str"])
-            df["label_num"] = pyg_tensor.tolist()
-            df["label_str"] = df["label_num"].map(label_map)
+            adb_df["label_num"] = pyg_tensor.tolist()
+            adb_df["label_str"] = adb_df["label_num"].map(label_map)
 
-            return df
+            return adb_df
 
         metagraph = {
             "nodeTypes": {
@@ -1051,11 +1050,26 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             return df
 
         if callable(meta_val):
-            # **meta_val** is a user-defined function that returns a dataframe
-            user_defined_result = meta_val(pyg_tensor)
+            # **meta_val** is a user-defined function that populates
+            # and returns the empty dataframe
+            empty_df = DataFrame(index=range(start_index, end_index))
+            user_defined_result = meta_val(pyg_tensor, empty_df)
 
-            if type(user_defined_result) is not DataFrame:  # pragma: no cover
-                msg = f"Invalid return type for function {meta_val} ('{meta_key}')"
+            if not isinstance(user_defined_result, DataFrame):  # pragma: no cover
+                msg = f"""
+                    Invalid return type for function {meta_val} ('{meta_key}').
+                    Function must return Pandas DataFrame.
+                """
+                raise PyGMetagraphError(msg)
+
+            if (
+                user_defined_result.index.start != start_index
+                or user_defined_result.index.stop != end_index
+            ):  # pragma: no cover
+                msg = f"""
+                    User Defined Function {meta_val} ('{meta_key}') must return
+                    DataFrame with start index {start_index} & stop index {end_index}
+                """
                 raise PyGMetagraphError(msg)
 
             return user_defined_result
