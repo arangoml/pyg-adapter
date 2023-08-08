@@ -16,7 +16,7 @@ from torch import Tensor
 Json = Dict[str, Any]
 
 DataFrameToTensor = Callable[[DataFrame], Tensor]
-TensorToDataFrame = Callable[[Tensor], DataFrame]
+TensorToDataFrame = Callable[[Tensor, DataFrame], DataFrame]
 
 ADBEncoders = Dict[str, DataFrameToTensor]
 ADBMetagraphValues = Union[str, DataFrameToTensor, ADBEncoders]

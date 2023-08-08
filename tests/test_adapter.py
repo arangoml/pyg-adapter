@@ -1003,7 +1003,7 @@ def assert_pyg_to_adb_meta(
                 assert df[meta_val].values.tolist() == data.tolist()
 
             if callable(meta_val):
-                udf_df = meta_val(data)
+                udf_df = meta_val(data, DataFrame(index=range(len(data))))
                 assert all([column in df for column in udf_df.columns])
                 for column in udf_df.columns:
                     assert df[column].tolist() == udf_df[column].tolist()

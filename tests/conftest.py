@@ -119,19 +119,17 @@ def get_social_graph() -> HeteroData:
 
 
 # For PyG to ArangoDB testing purposes
-def udf_v2_x_tensor_to_df(t: Tensor) -> DataFrame:
-    df = DataFrame(columns=["x"])
-    df["x"] = t.tolist()
-    # do more things with df["v2_features"] here ...
-    return df
+def udf_v2_x_tensor_to_df(t: Tensor, adb_df: DataFrame) -> DataFrame:
+    adb_df["x"] = t.tolist()
+    # do more things with adb_df["v2_features"] here ...
+    return adb_df
 
 
 # For PyG to ArangoDB testing purposes
-def udf_users_x_tensor_to_df(t: Tensor) -> DataFrame:
-    df = DataFrame(columns=["age", "gender"])
-    df[["age", "gender"]] = t.tolist()
-    df["gender"] = df["gender"].map({0: "Male", 1: "Female"})
-    return df
+def udf_users_x_tensor_to_df(t: Tensor, adb_df: DataFrame) -> DataFrame:
+    adb_df[["age", "gender"]] = t.tolist()
+    adb_df["gender"] = adb_df["gender"].map({0: "Male", 1: "Female"})
+    return adb_df
 
 
 # For ArangoDB to PyG testing purposes

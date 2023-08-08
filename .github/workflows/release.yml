@@ -8,67 +8,59 @@ env:
   TESTS_DIR: tests
 jobs:
   build:
-    runs-on: self-hosted
-    defaults:
-      run:
-        shell: bash -l {0}
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        include:
-          - python: "3.7"
-            DB_NAME: "py37"
-
-          - python: "3.8"
-            DB_NAME: "py38"
-
-          - python: "3.9"
-            DB_NAME: "py39"
-
-          - python: "3.10"
-            DB_NAME: "py310"
+        python: ["3.8", "3.9", "3.10", "3.11"]
     name: Python ${{ matrix.python }}
     steps:
-      - uses: actions/checkout@v2
-      - name: Set up pip & install packages
-        run: |
-          source ~/anaconda3/etc/profile.d/conda.sh
-          conda activate ${{ matrix.python }}
-          python -m pip install --upgrade pip setuptools wheel
-          pip install torch
-          pip install .[dev]
+      - uses: actions/checkout@v3
+      - name: Setup Python ${{ matrix.python }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python }}
+          cache: 'pip'
+          cache-dependency-path: setup.py
+      - name: Install packages
+        run: pip install torch && pip install -e .[dev]
       - name: Run black
-        run: conda run -n ${{ matrix.python }} black --check --verbose --diff --color ${{env.PACKAGE_DIR}} ${{env.TESTS_DIR}}
+        run: black --check --verbose --diff --color ${{env.PACKAGE_DIR}} ${{env.TESTS_DIR}}
       - name: Run flake8
         run: flake8 ${{env.PACKAGE_DIR}} ${{env.TESTS_DIR}}
       - name: Run isort
         run: isort --check --profile=black ${{env.PACKAGE_DIR}} ${{env.TESTS_DIR}}
       - name: Run mypy
-        run: conda run -n ${{ matrix.python }} mypy ${{env.PACKAGE_DIR}} ${{env.TESTS_DIR}}
-      - name: Run pytest in conda env
-        run: conda run -n ${{ matrix.python }} pytest --dbName ${{ matrix.DB_NAME }} --cov=${{env.PACKAGE_DIR}} --cov-report xml --cov-report term-missing -v --color=yes --no-cov-on-fail --code-highlight=yes
+        run: mypy ${{env.PACKAGE_DIR}} ${{env.TESTS_DIR}}
+      - name: Set up ArangoDB Instance via Docker
+        run: docker create --name adb -p 8529:8529 -e ARANGO_ROOT_PASSWORD= arangodb/arangodb
+      - name: Start ArangoDB Instance
+        run: docker start adb
+      - name: Run pytest
+        run: pytest --cov=${{env.PACKAGE_DIR}} --cov-report xml --cov-report term-missing -v --color=yes --no-cov-on-fail --code-highlight=yes
       - name: Publish to coveralls.io
         if: matrix.python == '3.8'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: conda run -n ${{ matrix.python }} coveralls --service=github
+        run: coveralls --service=github
 
   release:
     needs: build
-    runs-on: self-hosted
-    defaults:
-      run:
-        shell: bash -l {0}
+    runs-on: ubuntu-latest
     name: Release package
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+      - name: Setup Python 3.8
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.8"
+          cache: 'pip'
+          cache-dependency-path: setup.py
 
       - name: Fetch complete history for all tags and branches
         run: git fetch --prune --unshallow
 
       - name: Install packages
         run: |
-          source ~/anaconda3/etc/profile.d/conda.sh
-          conda activate 3.8
           pip install setuptools wheel twine setuptools-scm[toml]
           pip install torch
           pip install .[dev]
@@ -77,25 +69,26 @@ jobs:
         run: rm -rf dist
 
       - name: Build distribution
-        run: conda run -n 3.8 python setup.py sdist bdist_wheel
+        run: python setup.py sdist bdist_wheel
 
       - name: Publish to Test PyPi
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD_TEST }}
-        run: conda run -n 3.8 twine upload --repository testpypi dist/* #--skip-existing
+        run: twine upload --repository testpypi dist/* #--skip-existing
+
       - name: Publish to PyPi
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
-        run: conda run -n "3.8" twine upload --repository pypi dist/* #--skip-existing
+        run: twine upload --repository pypi dist/* #--skip-existing
 
   changelog:
     needs: release
     runs-on: ubuntu-latest
     name: Update Changelog
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
@@ -107,10 +100,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup python
-        uses: actions/setup-python@v2
+      - name: Setup Python 3.8
+        uses: actions/setup-python@v4
         with:
           python-version: "3.8"
+          cache: 'pip'
+          cache-dependency-path: setup.py
 
       - name: Install release packages
         run: pip install wheel gitchangelog pystache

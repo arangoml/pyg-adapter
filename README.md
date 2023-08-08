@@ -10,7 +10,7 @@
 
 [![License](https://img.shields.io/github/license/arangoml/pyg-adapter?color=9E2165&style=for-the-badge)](https://github.com/arangoml/pyg-adapter/blob/master/LICENSE)
 [![Code style: black](https://img.shields.io/static/v1?style=for-the-badge&label=code%20style&message=black&color=black)](https://github.com/psf/black)
-[![Downloads](https://img.shields.io/badge/dynamic/json?style=for-the-badge&color=282661&label=Downloads&query=total_downloads&url=https://api.pepy.tech/api/projects/adbpyg-adapter)](https://pepy.tech/project/adbpyg-adapter)
+[![Downloads](https://img.shields.io/badge/dynamic/json?style=for-the-badge&color=282661&label=Downloads&query=total_downloads&url=https://api.pepy.tech/api/v2/projects/adbpyg-adapter)](https://pepy.tech/project/adbpyg-adapter)
 
 
 <a href="https://www.arangodb.com/" rel="arangodb.com">![](https://raw.githubusercontent.com/arangoml/pyg-adapter/master/examples/assets/adb_logo.png)</a>
@@ -79,20 +79,25 @@ Note: If the PyG graph contains `_key`, `_v_key`, or `_e_key` properties for any
 adb_g = adbpyg_adapter.pyg_to_arangodb("FakeData", data)
 
 # 1.2: PyG to ArangoDB with a (completely optional) metagraph for customized adapter behaviour
-def y_tensor_to_2_column_dataframe(pyg_tensor):
+def y_tensor_to_2_column_dataframe(pyg_tensor, adb_df):
     """
     A user-defined function to create two
-    ArangoDB attributes out of the 'y' label tensor
+    ArangoDB attributes out of the 'user' label tensor
 
-    NOTE: user-defined functions must return a Pandas Dataframe
+    :param dgl_tensor: The DGL Tensor containing the data
+    :type dgl_tensor: torch.Tensor
+    :param adb_df: The ArangoDB DataFrame to populate, whose
+        size is preset to the length of **dgl_tensor**.
+    :type adb_df: pandas.DataFrame
+
+    NOTE: user-defined functions must return the modified **adb_df**
     """
     label_map = {0: "Kiwi", 1: "Blueberry", 2: "Avocado"}
 
-    df = pandas.DataFrame(columns=["label_num", "label_str"])
-    df["label_num"] = pyg_tensor.tolist()
-    df["label_str"] = df["label_num"].map(label_map)
+    adb_df["label_num"] = pyg_tensor.tolist()
+    adb_df["label_str"] = adb_df["label_num"].map(label_map)
 
-    return df
+    return adb_df
 
 
 metagraph = {
