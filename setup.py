@@ -20,7 +20,7 @@ setup(
         "requests>=2.27.1",
         "rich>=12.5.1",
         "pandas>=1.3.5",
-        "python-arango>=7.6.0",
+        "python-arango==7.6.0",
         "torch>=1.12.0",
         "torch-sparse>=0.6.14",
         "torch-scatter>=2.0.9",
