@@ -1,3 +1,110 @@
+## 1.1.1 (2023-08-08)
+
+### New
+
+* Batch_size (pyg to adb) [Anthony Mahanna]
+
+  + some miscellaneous cleanup
+
+* Get_aql_return_value. [Anthony Mahanna]
+
+* Batch_size test param. [Anthony Mahanna]
+
+  (adb to pyg)
+
+* `cache` field in build workflow. [Anthony Mahanna]
+
+* Video link. [aMahanna]
+
+### Fix
+
+* Release.yml. [Anthony Mahanna]
+
+* Mypy. [Anthony Mahanna]
+
+* Udf behaviour when batch_size is set. [Anthony Mahanna]
+
+* Aql kwargs. [Anthony Mahanna]
+
+* Flake8. [Anthony Mahanna]
+
+* Mypy. [Anthony Mahanna]
+
+* `PyGMetagraph` typing. [Anthony Mahanna]
+
+* Mypy. [Anthony Mahanna]
+
+* Type ignore. [Anthony Mahanna]
+
+### Other
+
+* Merge pull request #20 from arangoml/housekeeping. [Chris Woodward]
+
+  More housekeeping
+
+* Lock python-arango version. [Anthony Mahanna]
+
+* Merge branch 'master' into housekeeping. [Anthony Mahanna]
+
+* Merge pull request #21 from arangoml/MLP-443. [Chris Woodward]
+
+  MLP-443 | Bump python-arango
+
+* Removes E721 overzealous instance checking rule. [Chris Woodward]
+
+* MLP-443 | Bump python-arango. [Chris Woodward]
+
+* Use `isinstance` [Anthony Mahanna]
+
+* Initial commit. [Anthony Mahanna]
+
+* Merge pull request #19 from arangoml/feature/batching. [Alex Geenen]
+
+  Adapter batching
+
+* Temp: remove request_timeout. [Anthony Mahanna]
+
+  `mypy` is being silly
+
+* Merge branch 'master' into feature/batching. [Anthony Mahanna]
+
+* Merge pull request #17 from arangoml/feature/exceptions. [Alex Geenen]
+
+  Add Strict Parameter & Handle Invalid Edges
+
+* Wip: arangodb to pyg batching. [Anthony Mahanna]
+
+* Merge branch 'master' into feature/exceptions. [Anthony Mahanna]
+
+* Misc: cleanup. [Anthony Mahanna]
+
+* Remove: 3.7 build workflow. [Anthony Mahanna]
+
+  end of line as of june 27 2023
+
+* Merge branch 'master' into feature/exceptions. [Anthony Mahanna]
+
+* Housekeeping. [Anthony Mahanna]
+
+* Temp: new build.yml workflow. [Anthony Mahanna]
+
+  (temporarily retiring self-hosted runner implementation)
+
+* Merge branch 'master' into feature/exceptions. [Alex Geenen]
+
+* Merge pull request #18 from arangoml/documentation/lunch-and-learn-video. [Chris Woodward]
+
+  new: Lunch & Learn video link in readme
+
+* Merge branch 'master' into documentation/lunch-and-learn-video. [Anthony Mahanna]
+
+* Merge pull request #14 from arangoml/actions/changelog. [Chris Woodward]
+
+  changelog: release 1.1.0
+
+* Add Strict Parameter & Handle Invalid Edges. [Alex Geenen]
+
+
 ## 1.1.0 (2022-09-21)
 
 ### New
