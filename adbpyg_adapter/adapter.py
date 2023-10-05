@@ -3,7 +3,7 @@
 import logging
 from collections import defaultdict
 from math import ceil
-from typing import Any, DefaultDict, Dict, List, Optional, Set, Union
+from typing import Any, DefaultDict, Dict, List, Optional, Set, Tuple, Union
 
 import torch
 from arango.cursor import Cursor
@@ -256,7 +256,14 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         # Maps ArangoDB Vertex _keys to PyG Node ids
         adb_map: ADBMap = defaultdict(dict)
 
+        # The PyG Data or HeteroData object
         data = Data() if is_homogeneous else HeteroData()
+
+        v_cols: List[str] = list(metagraph["vertexCollections"].keys())
+
+        ######################
+        # Vertex Collections #
+        ######################
 
         for v_col, meta in metagraph["vertexCollections"].items():
             logger.debug(f"Preparing '{v_col}' vertices")
@@ -273,12 +280,15 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 cursor_batch = len(cursor.batch())  # type: ignore
                 df = DataFrame([cursor.pop() for _ in range(cursor_batch)])
 
+                # 1. Map each ArangoDB _key to a PyG node id
                 for adb_id in df["_key"]:
                     adb_map[v_col][adb_id] = pyg_id
                     pyg_id += 1
 
+                # 2. Set the PyG Node Data
                 self.__set_pyg_data(meta, node_data, df)
 
+                # 3. Maintain the ArangoDB _key values
                 if preserve_adb_keys:
                     node_data[preserve_key].extend(list(df["_key"]))
 
@@ -287,8 +297,13 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
                 df.drop(df.index, inplace=True)
 
+        ####################
+        # Edge Collections #
+        ####################
+
+        # et = Edge Type
         et_df: DataFrame
-        v_cols: List[str] = list(metagraph["vertexCollections"].keys())
+
         for e_col, meta in metagraph.get("edgeCollections", {}).items():
             logger.debug(f"Preparing '{e_col}' edges")
 
@@ -297,31 +312,38 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 cursor_batch = len(cursor.batch())  # type: ignore
                 df = DataFrame([cursor.pop() for _ in range(cursor_batch)])
 
+                # 1. Split the ArangoDB _from & _to IDs into two columns
                 df[["from_col", "from_key"]] = self.__split_adb_ids(df["_from"])
                 df[["to_col", "to_key"]] = self.__split_adb_ids(df["_to"])
 
+                # 2. Iterate over each edge type
                 for (from_col, to_col), count in (
                     df[["from_col", "to_col"]].value_counts().items()
                 ):
                     edge_type = (from_col, e_col, to_col)
                     edge_data: EdgeStorage = data if is_homogeneous else data[edge_type]
 
+                    # 3. Check for partial Edge Collection import
                     if from_col not in v_cols or to_col not in v_cols:
                         logger.debug(f"Skipping {edge_type}")
-                        continue  # partial edge collection import to pyg
+                        continue
 
                     logger.debug(f"Preparing {count} '{edge_type}' edges")
 
+                    # 4. Get the edge data corresponding to the current edge type
                     et_df = df[(df["from_col"] == from_col) & (df["to_col"] == to_col)]
 
+                    # 5. Map each ArangoDB from/to _key to the corresponding PyG node id
                     from_nodes = et_df["from_key"].map(adb_map[from_col]).tolist()
                     to_nodes = et_df["to_key"].map(adb_map[to_col]).tolist()
-                    edge_index = tensor([from_nodes, to_nodes])
 
+                    # 6. Set/Update the PyG Edge Index
+                    edge_index = tensor([from_nodes, to_nodes])
                     edge_data.edge_index = torch.cat(
                         (edge_data.get("edge_index", tensor([])), edge_index), dim=1
                     )
 
+                    # 7. Deal with invalid edges
                     if torch.any(torch.isnan(edge_data.edge_index)):
                         if strict:
                             raise InvalidADBEdgesError(
@@ -333,8 +355,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                                 :, ~torch.any(edge_data.edge_index.isnan(), dim=0)
                             ]
 
+                    # 8. Set the PyG Edge Data
                     self.__set_pyg_data(meta, edge_data, et_df)
 
+                    # 9. Maintain the ArangoDB _key values
                     if preserve_adb_keys:
                         preserve_key = "_e_key" if is_homogeneous else "_key"
                         if preserve_key not in edge_data:
@@ -478,7 +502,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             See below for an example of **metagraph**.
         :type metagraph: adbpyg_adapter.typings.PyGMetagraph
         :param explicit_metagraph: Whether to take the metagraph at face value or not.
-            If False, node & edge types OMITTED from the metagraph will be
+            If False, node & edge types OMITTED from the metagraph will still be
             brought over into ArangoDB. Also applies to node & edge attributes.
             Defaults to True.
         :type explicit_metagraph: bool
@@ -535,9 +559,11 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         logger.debug(f"--pyg_to_arangodb('{name}')--")
 
         validate_pyg_metagraph(metagraph)
-        is_custom_controller = type(self.__cntrl) is not ADBPyG_Controller
 
+        is_custom_controller = type(self.__cntrl) is not ADBPyG_Controller
+        is_explicit_metagraph = metagraph != {} and explicit_metagraph
         is_homogeneous = type(pyg_g) is Data
+
         if is_homogeneous and pyg_g.num_nodes == pyg_g.num_edges and not metagraph:
             msg = f"""
                 Ambiguity Error: can't convert to ArangoDB,
@@ -548,41 +574,26 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             """
             raise ValueError(msg)
 
-        # Maps PyG Node ids to ArangoDB Vertex _keys
+        # This maps the PyG Node ids to ArangoDB Vertex _keys
         pyg_map: PyGMap = defaultdict(dict)
 
-        node_types: List[str]
-        edge_types: List[EdgeType]
-        explicit_metagraph = metagraph != {} and explicit_metagraph
-        if explicit_metagraph:
-            node_types = metagraph.get("nodeTypes", {}).keys()  # type: ignore
-            edge_types = metagraph.get("edgeTypes", {}).keys()  # type: ignore
+        # Get the Node & Edge Types
+        node_types, edge_types = self.__get_node_and_edge_types(
+            name, pyg_g, metagraph, is_explicit_metagraph, is_homogeneous
+        )
 
-        elif is_homogeneous:
-            n_type = f"{name}_N"
-            node_types = [n_type]
-            edge_types = [(n_type, f"{name}_E", n_type)]
+        # Create the ArangoDB Graph
+        adb_graph = self.__create_adb_graph(
+            name, overwrite_graph, node_types, edge_types
+        )
 
-        else:
-            node_types = pyg_g.node_types
-            edge_types = pyg_g.edge_types
-
-        if overwrite_graph:
-            logger.debug("Overwrite graph flag is True. Deleting old graph.")
-            self.__db.delete_graph(name, ignore_missing=True)
-
-        if self.__db.has_graph(name):
-            adb_graph = self.__db.graph(name)
-        else:
-            edge_definitions = self.etypes_to_edefinitions(edge_types)
-            orphan_collections = self.ntypes_to_ocollections(node_types, edge_types)
-            adb_graph = self.__db.create_graph(
-                name, edge_definitions, orphan_collections
-            )  # type: ignore
-
-        # Define PyG data properties
+        # Define the PyG data properties
         node_data: NodeStorage
         edge_data: EdgeStorage
+
+        ##############
+        # Node Types #
+        ##############
 
         n_meta = metagraph.get("nodeTypes", {})
         for n_type in node_types:
@@ -595,7 +606,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             end_index = min(node_data_batch_size, node_data.num_nodes)
             batches = ceil(node_data.num_nodes / node_data_batch_size)
 
+            # For each batch of nodes
             for _ in range(batches):
+                # 1. Set the ArangoDB Node Data
                 df = self.__set_adb_data(
                     DataFrame(index=range(start_index, end_index)),
                     meta,
@@ -603,23 +616,31 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                     node_data.num_nodes,
                     start_index,
                     end_index,
-                    explicit_metagraph,
+                    is_explicit_metagraph,
                 )
 
+                # 2. Update the PyG Map
                 if "_id" in df:
                     pyg_map[n_type].update(df["_id"].to_dict())
                 else:
                     df["_key"] = df.get("_key", df.index.astype(str))
                     pyg_map[n_type].update((n_type + "/" + df["_key"]).to_dict())
 
+                # 3. Apply the ArangoDB Node Controller (if provided)
                 if is_custom_controller:
                     f = lambda n: self.__cntrl._prepare_pyg_node(n, n_type)
                     df = df.apply(f, axis=1)
 
+                # 4. Insert the ArangoDB Node Documents
                 self.__insert_adb_docs(n_type, df, import_options)
 
+                # 5. Update the batch indices
                 start_index = end_index
                 end_index = min(end_index + node_data_batch_size, node_data.num_nodes)
+
+        ##############
+        # Edge Types #
+        ##############
 
         e_meta = metagraph.get("edgeTypes", {})
         for e_type in edge_types:
@@ -633,8 +654,12 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             end_index = min(edge_data_batch_size, edge_data.num_edges)
             batches = ceil(edge_data.num_edges / edge_data_batch_size)
 
+            # For each batch of edges
             for _ in range(batches):
+                # 1. Fetch the Edge Index of the current batch
                 edge_index = edge_data.edge_index[:, start_index:end_index]
+
+                # 2. Set the ArangoDB Edge Data
                 df = self.__set_adb_data(
                     DataFrame(
                         zip(*(edge_index.tolist())),
@@ -646,34 +671,117 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                     edge_data.num_edges,
                     start_index,
                     end_index,
-                    explicit_metagraph,
+                    is_explicit_metagraph,
                 )
 
+                # 3. Set the _from column
                 df["_from"] = (
                     df["_from"].map(pyg_map[src_n_type])
                     if pyg_map[src_n_type]
                     else src_n_type + "/" + df["_from"].astype(str)
                 )
 
+                # 4. Set the _to column
                 df["_to"] = (
                     df["_to"].map(pyg_map[dst_n_type])
                     if pyg_map[dst_n_type]
                     else dst_n_type + "/" + df["_to"].astype(str)
                 )
 
+                # 5. Apply the ArangoDB Edge Controller (if provided)
                 if is_custom_controller:
                     f = lambda e: self.__cntrl._prepare_pyg_edge(e, e_type)
                     df = df.apply(f, axis=1)
 
+                # 6. Insert the ArangoDB Edge Documents
                 self.__insert_adb_docs(e_type, df, import_options)
 
+                # 7. Update the batch indices
                 start_index = end_index
                 end_index = min(end_index + edge_data_batch_size, edge_data.num_edges)
 
         logger.info(f"Created ArangoDB '{name}' Graph")
         return adb_graph
 
-    def etypes_to_edefinitions(self, edge_types: List[EdgeType]) -> List[Json]:
+    def __get_node_and_edge_types(
+        self,
+        name: str,
+        pyg_g: Union[Data, HeteroData],
+        metagraph: PyGMetagraph,
+        is_explicit_metagraph: bool,
+        is_homogeneous: bool,
+    ) -> Tuple[List[str], List[EdgeType]]:
+        """Returns the node & edge types of the PyG graph, based on the
+            metagraph and whether the graph has default canonical etypes.
+        :param name: The PyG graph name.
+        :type name: str
+        :param pyg_g: The existing PyG graph.
+        :type pyg_g: Data | HeteroData
+        :param metagraph: The PyG Metagraph.
+        :type metagraph: adbpyg_adapter.typings.PyGMetagraph
+        :param is_explicit_metagraph: Take the metagraph at face value or not.
+        :type is_explicit_metagraph: bool
+        :param is_homogeneous: Whether the PyG graph is homogeneous or not.
+        :type is_homogeneous: bool
+        :return: The node & edge types of the PyG graph.
+        :rtype: Tuple[List[str], List[torch_geometric.typing.EdgeType]]]
+        """
+        node_types: List[str]
+        edge_types: List[EdgeType]
+
+        if is_explicit_metagraph:
+            node_types = metagraph.get("nodeTypes", {}).keys()  # type: ignore
+            edge_types = metagraph.get("edgeTypes", {}).keys()  # type: ignore
+
+        elif is_homogeneous:
+            n_type = f"{name}_N"
+            node_types = [n_type]
+            edge_types = [(n_type, f"{name}_E", n_type)]
+
+        else:
+            node_types = pyg_g.node_types
+            edge_types = pyg_g.edge_types
+
+        return node_types, edge_types
+
+    def __create_adb_graph(
+        self,
+        name: str,
+        overwrite_graph: bool,
+        node_types: List[str],
+        edge_types: List[EdgeType],
+    ) -> ADBGraph:
+        """Creates an ArangoDB graph.
+        :param name: The ArangoDB graph name.
+        :type name: str
+        :param overwrite_graph: Overwrites the graph if it already exists.
+            Does not drop associated collections. Defaults to False.
+        :type overwrite_graph: bool
+        :param node_types: A list of strings representing the PyG node types.
+        :type node_types: List[str]
+        :param edge_types: A list of string triplets (str, str, str) for
+            source node type, edge type and destination node type.
+        :type edge_types: List[torch_geometric.typing.EdgeType]
+        :return: The ArangoDB Graph API wrapper.
+        :rtype: arango.graph.Graph
+        """
+        if overwrite_graph:
+            logger.debug("Overwrite graph flag is True. Deleting old graph.")
+            self.__db.delete_graph(name, ignore_missing=True)
+
+        if self.__db.has_graph(name):
+            return self.__db.graph(name)
+
+        edge_definitions = self.__etypes_to_edefinitions(edge_types)
+        orphan_collections = self.__ntypes_to_ocollections(node_types, edge_types)
+
+        return self.__db.create_graph(  # type: ignore[return-value]
+            name,
+            edge_definitions,
+            orphan_collections,
+        )
+
+    def __etypes_to_edefinitions(self, edge_types: List[EdgeType]) -> List[Json]:
         """Converts PyG edge_types to ArangoDB edge_definitions
 
         :param edge_types: A list of string triplets (str, str, str) for
@@ -717,7 +825,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         return edge_definitions
 
-    def ntypes_to_ocollections(
+    def __ntypes_to_ocollections(
         self, node_types: List[str], edge_types: List[EdgeType]
     ) -> List[str]:
         """Converts PyG node_types to ArangoDB orphan collections, if any.
@@ -873,7 +981,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         pyg_data_size: int,
         start_index: int,
         end_index: int,
-        explicit_metagraph: bool,
+        is_explicit_metagraph: bool,
     ) -> DataFrame:
         """A helper method to build the ArangoDB Dataframe for the given
         collection. Is responsible for creating "sub-DataFrames" from PyG tensors
@@ -898,21 +1006,20 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :param end_index: The ending index of the current batch to process.
         :type end_index: int
         :type pyg_data: torch_geometric.data.storage.(NodeStorage | EdgeStorage)
-        :param explicit_metagraph: The value of **explicit_metagraph**
-            in **pyg_to_arangodb**.
-        :type explicit_metagraph: bool
+        :param is_explicit_metagraph: Take the metagraph at face value or not.
+        :type is_explicit_metagraph: bool
         :return: The completed DataFrame for the (soon-to-be) ArangoDB collection.
         :rtype: pandas.DataFrame
         :raise ValueError: If an unsupported PyG data value is found.
         """
         logger.debug(
-            f"__set_adb_data(df, {meta}, {type(pyg_data)}, {explicit_metagraph}"
+            f"__set_adb_data(df, {meta}, {type(pyg_data)}, {is_explicit_metagraph}"
         )
 
         valid_meta: Dict[Any, PyGMetagraphValues]
         valid_meta = meta if type(meta) is dict else {m: m for m in meta}
 
-        if explicit_metagraph:
+        if is_explicit_metagraph:
             pyg_keys = set(valid_meta.keys())
         else:
             # can't do pyg_data.keys() (not compatible with Homogeneous graphs)

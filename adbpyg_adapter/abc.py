@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from abc import ABC
-from typing import Any, List, Set, Union
+from typing import Any, Set, Union
 
 from arango.graph import Graph as ArangoDBGraph
 from torch_geometric.data import Data, HeteroData
@@ -39,26 +39,6 @@ class Abstract_ADBPyG_Adapter(ABC):
         overwrite_graph: bool = False,
         **import_options: Any,
     ) -> ArangoDBGraph:
-        raise NotImplementedError  # pragma: no cover
-
-    def etypes_to_edefinitions(self, edge_types: List[EdgeType]) -> List[Json]:
-        raise NotImplementedError  # pragma: no cover
-
-    def ntypes_to_ocollections(
-        self, node_types: List[str], edge_types: List[EdgeType]
-    ) -> List[str]:
-        raise NotImplementedError  # pragma: no cover
-
-    def __fetch_adb_docs(self) -> None:
-        raise NotImplementedError  # pragma: no cover
-
-    def __insert_adb_docs(self) -> None:
-        raise NotImplementedError  # pragma: no cover
-
-    def __build_tensor_from_dataframe(self) -> None:
-        raise NotImplementedError  # pragma: no cover
-
-    def __build_dataframe_from_tensor(self) -> None:
         raise NotImplementedError  # pragma: no cover
 
 
