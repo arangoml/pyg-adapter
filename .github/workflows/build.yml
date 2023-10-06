@@ -25,8 +25,8 @@ jobs:
           cache-dependency-path: setup.py
       - name: Install packages
         run: |
-          pip install torch
-          pip install torch-sparse
+          pip install torch==2.1.0
+          pip install torch-scatter torch-sparse -f https://data.pyg.org/whl/torch-2.1.0+cpu.html
           pip install -e .[dev]
       - name: Run black
         run: black --check --verbose --diff --color ${{env.PACKAGE_DIR}} ${{env.TESTS_DIR}}
