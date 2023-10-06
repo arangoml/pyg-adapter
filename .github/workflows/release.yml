@@ -22,7 +22,11 @@ jobs:
           cache: 'pip'
           cache-dependency-path: setup.py
       - name: Install packages
-        run: pip install torch && pip install -e .[dev]
+        run: |
+          pip install torch
+          echo "TORCH_VERSION=$(python -c 'import torch; print(torch.__version__.split("+")[0])')" >> $GITHUB_ENV
+          pip install torch-scatter torch-sparse -f https://data.pyg.org/whl/torch-${{ env.TORCH_VERSION }}+cpu.html
+          pip install -e .[dev]
       - name: Run black
         run: black --check --verbose --diff --color ${{env.PACKAGE_DIR}} ${{env.TESTS_DIR}}
       - name: Run flake8
@@ -61,9 +65,10 @@ jobs:
 
       - name: Install packages
         run: |
-          pip install setuptools wheel twine setuptools-scm[toml]
           pip install torch
-          pip install .[dev]
+          echo "TORCH_VERSION=$(python -c 'import torch; print(torch.__version__.split("+")[0])')" >> $GITHUB_ENV
+          pip install torch-scatter torch-sparse -f https://data.pyg.org/whl/torch-${{ env.TORCH_VERSION }}+cpu.html
+          pip install -e .[dev]
 
       - name: Remove (old) distribution
         run: rm -rf dist
@@ -111,10 +116,10 @@ jobs:
         run: pip install wheel gitchangelog pystache
 
       - name: Set variables
-        run: echo "VERSION=$(curl ${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases/latest | python -c "import sys; import json; print(json.load(sys.stdin)['tag_name'])")" >> $GITHUB_ENV
+        run: echo "PACKAGE_VERSION=$(curl ${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases/latest | python -c "import sys; import json; print(json.load(sys.stdin)['tag_name'])")" >> $GITHUB_ENV
 
       - name: Generate newest changelog
-        run: gitchangelog ${{env.VERSION}} > CHANGELOG.md
+        run: gitchangelog ${{env.PACKAGE_VERSION}} > CHANGELOG.md
 
       - name: Make commit for auto-generated changelog
         uses: EndBug/add-and-commit@v7
@@ -128,7 +133,7 @@ jobs:
       - name: Create pull request for the auto generated changelog
         run: |
           echo "PR_URL=$(gh pr create \
-            --title "changelog: release ${{env.VERSION}}" \
+            --title "changelog: release ${{env.PACKAGE_VERSION}}" \
             --body "beep boop, i am a robot" \
             --label documentation)" >> $GITHUB_ENV
         env:
