@@ -1019,16 +1019,14 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         valid_meta: Dict[Any, PyGMetagraphValues]
         valid_meta = meta if type(meta) is dict else {m: m for m in meta}
 
-        if is_explicit_metagraph:
-            pyg_keys = set(valid_meta.keys())
-        else:
-            # can't do pyg_data.keys() (not compatible with Homogeneous graphs)
-            pyg_keys = set(k for k, _ in pyg_data.items())
+        pyg_keys = (
+            set(valid_meta.keys())
+            if is_explicit_metagraph
+            # pyg_data.keys() is not compatible with Homogeneous graphs:
+            else set(k for k, _ in pyg_data.items())
+        )
 
-        for meta_key in pyg_keys:
-            if meta_key == "edge_index":
-                continue
-
+        for meta_key in pyg_keys - {"edge_index"}:
             data = pyg_data[meta_key]
             meta_val = valid_meta.get(meta_key, str(meta_key))
 
