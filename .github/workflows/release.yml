@@ -66,6 +66,7 @@ jobs:
         run: |
           pip install torch
           pip install torch-scatter torch-sparse -f https://data.pyg.org/whl/torch-$(python -c 'import torch; print(torch.__version__.split("+")[0])')+cpu.html
+          pip install setuptools wheel twine setuptools-scm[toml]
           pip install -e .[dev]
 
       - name: Remove (old) distribution
