@@ -672,7 +672,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         self,
         col: str,
         meta: Union[Set[str], Dict[str, ADBMetagraphValues]],
-        **query_options: Any,
+        **export_options: Any,
     ) -> Tuple[Cursor, int]:
         """ArangoDB -> PyG: Fetches ArangoDB documents within a collection.
         Returns the documents in a DataFrame.
@@ -681,9 +681,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :type col: str
         :param meta: The MetaGraph associated to **col**
         :type meta: Set[str] | Dict[str, adbpyg_adapter.typings.ADBMetagraphValues]
-        :param query_options: Keyword arguments to specify AQL query options
+        :param export_options: Keyword arguments to specify AQL query options
             when fetching documents from the ArangoDB instance.
-        :type query_options: Any
+        :type export_options: Any
         :return: A DataFrame representing the ArangoDB documents.
         :rtype: pandas.DataFrame
         """
@@ -725,7 +725,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             cursor: Cursor = self.__db.aql.execute(  # type: ignore
                 f"FOR doc IN @@col RETURN {get_aql_return_value(meta)}",
                 bind_vars={"@col": col},
-                **{**query_options, **{"stream": True}},
+                **{**export_options, **{"stream": True}},
             )
 
             return cursor, col_size
