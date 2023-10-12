@@ -50,7 +50,7 @@ def pytest_configure(config: Any) -> None:
     )
 
     global adbpyg_adapter
-    adbpyg_adapter = ADBPyG_Adapter(db, logging_lvl=logging.DEBUG)
+    adbpyg_adapter = ADBPyG_Adapter(db, logging_lvl=logging.INFO)
 
 
 def pytest_exception_interact(node: Any, call: Any, report: Any) -> None:

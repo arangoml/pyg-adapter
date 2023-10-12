@@ -3,13 +3,16 @@
 import logging
 from collections import defaultdict
 from math import ceil
-from typing import Any, DefaultDict, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Callable, DefaultDict, Dict, List, Optional, Set, Tuple, Union
 
 import torch
 from arango.cursor import Cursor
 from arango.database import Database
 from arango.graph import Graph as ADBGraph
 from pandas import DataFrame, Series
+from rich.console import Group
+from rich.live import Live
+from rich.progress import Progress
 from torch import Tensor, cat, tensor
 from torch_geometric.data import Data, HeteroData
 from torch_geometric.data.storage import EdgeStorage, NodeStorage
@@ -27,7 +30,14 @@ from .typings import (
     PyGMetagraph,
     PyGMetagraphValues,
 )
-from .utils import logger, progress, validate_adb_metagraph, validate_pyg_metagraph
+from .utils import (
+    get_bar_progress,
+    get_export_spinner_progress,
+    get_import_spinner_progress,
+    logger,
+    validate_adb_metagraph,
+    validate_pyg_metagraph,
+)
 
 
 class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
@@ -77,6 +87,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
     def set_logging(self, level: Union[int, str]) -> None:
         logger.setLevel(level)
 
+    ###########################
+    # Public: ArangoDB -> PyG #
+    ###########################
+
     def arangodb_to_pyg(
         self,
         name: str,
@@ -86,7 +100,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         **query_options: Any,
     ) -> Union[Data, HeteroData]:
         """Create a PyG graph from ArangoDB data. DOES carry
-            over node/edge features/labels, via the **metagraph**.
+        over node/edge features/labels, via the **metagraph**.
 
         :param name: The PyG graph name.
         :type name: str
@@ -265,111 +279,67 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         # Vertex Collections #
         ######################
 
+        preserve_key = None
+        if preserve_adb_keys:
+            preserve_key = "_v_key" if is_homogeneous else "_key"
+
         for v_col, meta in metagraph["vertexCollections"].items():
             logger.debug(f"Preparing '{v_col}' vertices")
 
             node_data: NodeStorage = data if is_homogeneous else data[v_col]
 
-            if preserve_adb_keys:
-                preserve_key = "_v_key" if is_homogeneous else "_key"
+            if preserve_key is not None:
                 node_data[preserve_key] = []
 
-            pyg_id = 0
-            cursor = self.__fetch_adb_docs(v_col, meta, query_options)
-            while not cursor.empty():
-                cursor_batch = len(cursor.batch())  # type: ignore
-                df = DataFrame([cursor.pop() for _ in range(cursor_batch)])
+            # 1. Fetch ArangoDB vertices
+            v_col_cursor, v_col_size = self.__fetch_adb_docs(
+                v_col, meta, **query_options
+            )
 
-                # 1. Map each ArangoDB _key to a PyG node id
-                for adb_id in df["_key"]:
-                    adb_map[v_col][adb_id] = pyg_id
-                    pyg_id += 1
-
-                # 2. Set the PyG Node Data
-                self.__set_pyg_data(meta, node_data, df)
-
-                # 3. Maintain the ArangoDB _key values
-                if preserve_adb_keys:
-                    node_data[preserve_key].extend(list(df["_key"]))
-
-                if cursor.has_more():
-                    cursor.fetch()
-
-                df.drop(df.index, inplace=True)
+            # 2. Process ArangoDB vertices
+            self.__process_adb_cursor(
+                "#8929C2",
+                v_col_cursor,
+                v_col_size,
+                self.__process_adb_vertex_df,
+                v_col,
+                adb_map,
+                meta,
+                preserve_key,
+                node_data=node_data,
+            )
 
         ####################
         # Edge Collections #
         ####################
 
-        # et = Edge Type
-        et_df: DataFrame
+        preserve_key = None
+        if preserve_adb_keys:
+            preserve_key = "_e_key" if is_homogeneous else "_key"
 
         for e_col, meta in metagraph.get("edgeCollections", {}).items():
             logger.debug(f"Preparing '{e_col}' edges")
 
-            cursor = self.__fetch_adb_docs(e_col, meta, query_options)
-            while not cursor.empty():
-                cursor_batch = len(cursor.batch())  # type: ignore
-                df = DataFrame([cursor.pop() for _ in range(cursor_batch)])
+            # 1. Fetch ArangoDB edges
+            e_col_cursor, e_col_size = self.__fetch_adb_docs(
+                e_col, meta, **query_options
+            )
 
-                # 1. Split the ArangoDB _from & _to IDs into two columns
-                df[["from_col", "from_key"]] = self.__split_adb_ids(df["_from"])
-                df[["to_col", "to_key"]] = self.__split_adb_ids(df["_to"])
-
-                # 2. Iterate over each edge type
-                for (from_col, to_col), count in (
-                    df[["from_col", "to_col"]].value_counts().items()
-                ):
-                    edge_type = (from_col, e_col, to_col)
-                    edge_data: EdgeStorage = data if is_homogeneous else data[edge_type]
-
-                    # 3. Check for partial Edge Collection import
-                    if from_col not in v_cols or to_col not in v_cols:
-                        logger.debug(f"Skipping {edge_type}")
-                        continue
-
-                    logger.debug(f"Preparing {count} '{edge_type}' edges")
-
-                    # 4. Get the edge data corresponding to the current edge type
-                    et_df = df[(df["from_col"] == from_col) & (df["to_col"] == to_col)]
-
-                    # 5. Map each ArangoDB from/to _key to the corresponding PyG node id
-                    from_nodes = et_df["from_key"].map(adb_map[from_col]).tolist()
-                    to_nodes = et_df["to_key"].map(adb_map[to_col]).tolist()
-
-                    # 6. Set/Update the PyG Edge Index
-                    edge_index = tensor([from_nodes, to_nodes])
-                    edge_data.edge_index = torch.cat(
-                        (edge_data.get("edge_index", tensor([])), edge_index), dim=1
-                    )
-
-                    # 7. Deal with invalid edges
-                    if torch.any(torch.isnan(edge_data.edge_index)):
-                        if strict:
-                            raise InvalidADBEdgesError(
-                                f"Invalid edges found in Edge Collection {e_col}, {from_col} -> {to_col}."  # noqa: E501
-                            )
-                        else:
-                            # Remove the invalid edges
-                            edge_data.edge_index = edge_data.edge_index[
-                                :, ~torch.any(edge_data.edge_index.isnan(), dim=0)
-                            ]
-
-                    # 8. Set the PyG Edge Data
-                    self.__set_pyg_data(meta, edge_data, et_df)
-
-                    # 9. Maintain the ArangoDB _key values
-                    if preserve_adb_keys:
-                        preserve_key = "_e_key" if is_homogeneous else "_key"
-                        if preserve_key not in edge_data:
-                            edge_data[preserve_key] = []
-
-                        edge_data[preserve_key].extend(list(et_df["_key"]))
-
-                if cursor.has_more():
-                    cursor.fetch()
-
-                df.drop(df.index, inplace=True)
+            # 2. Process ArangoDB edges
+            self.__process_adb_cursor(
+                "#40A6F5",
+                e_col_cursor,
+                e_col_size,
+                self.__process_adb_edge_df,
+                e_col,
+                adb_map,
+                meta,
+                preserve_key,
+                data=data,
+                v_cols=v_cols,
+                strict=strict,
+                is_homogeneous=is_homogeneous,
+            )
 
         logger.info(f"Created PyG '{name}' Graph")
         return data
@@ -383,7 +353,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         **query_options: Any,
     ) -> Union[Data, HeteroData]:
         """Create a PyG graph from ArangoDB collections. Due to risk of
-            ambiguity, this method DOES NOT transfer ArangoDB attributes to PyG.
+        ambiguity, this method DOES NOT transfer ArangoDB attributes to PyG.
 
         :param name: The PyG graph name.
         :type name: str
@@ -460,6 +430,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         return self.arangodb_collections_to_pyg(
             name, v_cols, e_cols, preserve_adb_keys, **query_options
         )
+
+    ###########################
+    # Public: PyG -> ArangoDB #
+    ###########################
 
     def pyg_to_arangodb(
         self,
@@ -591,9 +565,11 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         node_data: NodeStorage
         edge_data: EdgeStorage
 
-        ##############
-        # Node Types #
-        ##############
+        spinner_progress = get_import_spinner_progress("    ")
+
+        #############
+        # PyG Nodes #
+        #############
 
         n_meta = metagraph.get("nodeTypes", {})
         for n_type in node_types:
@@ -606,46 +582,45 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             end_index = min(node_data_batch_size, node_data.num_nodes)
             batches = ceil(node_data.num_nodes / node_data_batch_size)
 
-            # For each batch of nodes
-            for _ in range(batches):
-                # 1. Set the ArangoDB Node Data
-                df = self.__set_adb_data(
-                    DataFrame(index=range(start_index, end_index)),
-                    meta,
-                    node_data,
-                    node_data.num_nodes,
-                    start_index,
-                    end_index,
-                    is_explicit_metagraph,
-                )
+            bar_progress = get_bar_progress(f"(PyG → ADB): '{n_type}'", "#97C423")
+            bar_progress_task = bar_progress.add_task(n_type, total=node_data.num_nodes)
 
-                # 2. Update the PyG Map
-                if "_id" in df:
-                    pyg_map[n_type].update(df["_id"].to_dict())
-                else:
-                    df["_key"] = df.get("_key", df.index.astype(str))
-                    pyg_map[n_type].update((n_type + "/" + df["_key"]).to_dict())
+            with Live(Group(bar_progress, spinner_progress)):
+                for _ in range(batches):
+                    # 1. Process the Node batch
+                    df = self.__process_pyg_node_batch(
+                        n_type,
+                        node_data,
+                        meta,
+                        pyg_map,
+                        is_explicit_metagraph,
+                        is_custom_controller,
+                        start_index,
+                        end_index,
+                    )
 
-                # 3. Apply the ArangoDB Node Controller (if provided)
-                if is_custom_controller:
-                    f = lambda n: self.__cntrl._prepare_pyg_node(n, n_type)
-                    df = df.apply(f, axis=1)
+                    bar_progress.advance(
+                        bar_progress_task, advance=end_index - start_index
+                    )
 
-                # 4. Insert the ArangoDB Node Documents
-                self.__insert_adb_docs(n_type, df, import_options)
+                    # 2. Insert the ArangoDB Node Documents
+                    self.__insert_adb_docs(
+                        spinner_progress, df, n_type, **import_options
+                    )
 
-                # 5. Update the batch indices
-                start_index = end_index
-                end_index = min(end_index + node_data_batch_size, node_data.num_nodes)
+                    # 3. Update the batch indices
+                    start_index = end_index
+                    end_index = min(
+                        end_index + node_data_batch_size, node_data.num_nodes
+                    )
 
-        ##############
-        # Edge Types #
-        ##############
+        #############
+        # PyG Edges #
+        #############
 
         e_meta = metagraph.get("edgeTypes", {})
         for e_type in edge_types:
             meta = e_meta.get(e_type, {})
-            src_n_type, _, dst_n_type = e_type
 
             edge_data = pyg_g if is_homogeneous else pyg_g[e_type]
             edge_data_batch_size = batch_size or edge_data.num_edges
@@ -654,54 +629,400 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             end_index = min(edge_data_batch_size, edge_data.num_edges)
             batches = ceil(edge_data.num_edges / edge_data_batch_size)
 
-            # For each batch of edges
-            for _ in range(batches):
-                # 1. Fetch the Edge Index of the current batch
-                edge_index = edge_data.edge_index[:, start_index:end_index]
+            bar_progress = get_bar_progress(f"(PyG → ADB): '{e_type}'", "#994602")
+            bar_progress_task = bar_progress.add_task(e_type, total=edge_data.num_edges)
 
-                # 2. Set the ArangoDB Edge Data
-                df = self.__set_adb_data(
-                    DataFrame(
-                        zip(*(edge_index.tolist())),
-                        index=range(start_index, end_index),
-                        columns=["_from", "_to"],
-                    ),
-                    meta,
-                    edge_data,
-                    edge_data.num_edges,
-                    start_index,
-                    end_index,
-                    is_explicit_metagraph,
-                )
+            with Live(Group(bar_progress, spinner_progress)):
+                for _ in range(batches):
+                    # 1. Process the Edge batch
+                    df = self.__process_pyg_edge_batch(
+                        e_type,
+                        edge_data,
+                        meta,
+                        pyg_map,
+                        is_explicit_metagraph,
+                        is_custom_controller,
+                        start_index,
+                        end_index,
+                    )
 
-                # 3. Set the _from column
-                df["_from"] = (
-                    df["_from"].map(pyg_map[src_n_type])
-                    if pyg_map[src_n_type]
-                    else src_n_type + "/" + df["_from"].astype(str)
-                )
+                    bar_progress.advance(
+                        bar_progress_task, advance=end_index - start_index
+                    )
 
-                # 4. Set the _to column
-                df["_to"] = (
-                    df["_to"].map(pyg_map[dst_n_type])
-                    if pyg_map[dst_n_type]
-                    else dst_n_type + "/" + df["_to"].astype(str)
-                )
+                    # 2. Insert the ArangoDB Edge Documents
+                    self.__insert_adb_docs(
+                        spinner_progress, df, e_type, **import_options
+                    )
 
-                # 5. Apply the ArangoDB Edge Controller (if provided)
-                if is_custom_controller:
-                    f = lambda e: self.__cntrl._prepare_pyg_edge(e, e_type)
-                    df = df.apply(f, axis=1)
-
-                # 6. Insert the ArangoDB Edge Documents
-                self.__insert_adb_docs(e_type, df, import_options)
-
-                # 7. Update the batch indices
-                start_index = end_index
-                end_index = min(end_index + edge_data_batch_size, edge_data.num_edges)
+                    # 3. Update the batch indices
+                    start_index = end_index
+                    end_index = min(
+                        end_index + edge_data_batch_size, edge_data.num_edges
+                    )
 
         logger.info(f"Created ArangoDB '{name}' Graph")
         return adb_graph
+
+    ############################
+    # Private: ArangoDB -> PyG #
+    ############################
+
+    def __fetch_adb_docs(
+        self,
+        col: str,
+        meta: Union[Set[str], Dict[str, ADBMetagraphValues]],
+        **query_options: Any,
+    ) -> Tuple[Cursor, int]:
+        """ArangoDB -> PyG: Fetches ArangoDB documents within a collection.
+        Returns the documents in a DataFrame.
+
+        :param col: The ArangoDB collection.
+        :type col: str
+        :param meta: The MetaGraph associated to **col**
+        :type meta: Set[str] | Dict[str, adbpyg_adapter.typings.ADBMetagraphValues]
+        :param query_options: Keyword arguments to specify AQL query options
+            when fetching documents from the ArangoDB instance.
+        :type query_options: Any
+        :return: A DataFrame representing the ArangoDB documents.
+        :rtype: pandas.DataFrame
+        """
+
+        def get_aql_return_value(
+            meta: Union[Set[str], Dict[str, ADBMetagraphValues]]
+        ) -> str:
+            """Helper method to formulate the AQL `RETURN` value based on
+            the document attributes specified in **meta**
+            """
+            attributes = []
+
+            if type(meta) is set:
+                attributes = list(meta)
+
+            elif type(meta) is dict:
+                for value in meta.values():
+                    if type(value) is str:
+                        attributes.append(value)
+                    elif type(value) is dict:
+                        attributes.extend(list(value.keys()))
+                    elif callable(value):
+                        # Cannot determine which attributes to extract if UDFs are used
+                        # Therefore we just return the entire document
+                        return "doc"
+
+            return f"""
+                MERGE(
+                    {{ _key: doc._key, _from: doc._from, _to: doc._to }},
+                    KEEP(doc, {list(attributes)})
+                )
+            """
+
+        col_size: int = self.__db.collection(col).count()  # type: ignore
+
+        with get_export_spinner_progress(f"ADB Export: '{col}' ({col_size})") as p:
+            p.add_task(col)
+
+            cursor: Cursor = self.__db.aql.execute(  # type: ignore
+                f"FOR doc IN @@col RETURN {get_aql_return_value(meta)}",
+                bind_vars={"@col": col},
+                **{**query_options, **{"stream": True}},
+            )
+
+            return cursor, col_size
+
+    def __process_adb_cursor(
+        self,
+        progress_color: str,
+        cursor: Cursor,
+        col_size: int,
+        process_adb_df: Callable[..., int],
+        col: str,
+        adb_map: ADBMap,
+        meta: Set[str] | Dict[str, ADBMetagraphValues],
+        preserve_key: Optional[str],
+        **kwargs: Any,
+    ) -> None:
+        """ArangoDB -> PyG: Processes the ArangoDB Cursors for vertices and edges.
+
+        :param progress_color: The progress bar color.
+        :type progress_color: str
+        :param cursor: The ArangoDB cursor for the current **col**.
+        :type cursor: arango.cursor.Cursor
+        :param process_adb_df: The function to process the cursor data
+            (in the form of a Dataframe).
+        :type process_adb_df: Callable
+        :param col: The ArangoDB collection for the current **cursor**.
+        :type col: str
+        :param col_size: The size of **col**.
+        :type col_size: int
+        :param adb_map: The ArangoDB -> PyG map.
+        :type adb_map: adbpyg_adapter.typings.ADBMap
+        :param meta: The metagraph for the current **col**.
+        :type meta: Set[str] | Dict[str, ADBMetagraphValues]
+        :param preserve_key: The PyG key to preserve the ArangoDB _key values.
+        :type preserve_key: Optional[str]
+        :param kwargs: Additional keyword arguments to pass to **process_adb_df**.
+        :type args: Any
+        """
+
+        progress = get_bar_progress(f"(ADB → PyG): '{col}'", progress_color)
+        progress_task_id = progress.add_task(col, total=col_size)
+
+        with Live(Group(progress)):
+            i = 0
+            while not cursor.empty():
+                cursor_batch = len(cursor.batch())  # type: ignore
+                df = DataFrame([cursor.pop() for _ in range(cursor_batch)])
+
+                i = process_adb_df(i, df, col, adb_map, meta, preserve_key, **kwargs)
+                progress.advance(progress_task_id, advance=len(df))
+
+                df.drop(df.index, inplace=True)
+
+                if cursor.has_more():
+                    cursor.fetch()
+
+    def __process_adb_vertex_df(
+        self,
+        i: int,
+        df: DataFrame,
+        v_col: str,
+        adb_map: ADBMap,
+        meta: Set[str] | Dict[str, ADBMetagraphValues],
+        preserve_key: Optional[str],
+        node_data: NodeStorage,
+    ) -> int:
+        """ArangoDB -> PyG: Process the ArangoDB Vertex DataFrame
+        into the PyG NodeStorage object.
+
+        :param i: The last PyG Node id value.
+        :type i: int
+        :param df: The ArangoDB Vertex DataFrame.
+        :type df: pandas.DataFrame
+        :param v_col: The ArangoDB Vertex Collection.
+        :type v_col: str
+        :param adb_map: The ArangoDB -> PyG map.
+        :type adb_map: adbpyg_adapter.typings.ADBMap
+        :param meta: The metagraph for the current **v_col**.
+        :type meta: Set[str] | Dict[str, ADBMetagraphValues]
+        :param preserve_key: The PyG key to preserve the ArangoDB _key values.
+        :type preserve_key: Optional[str]
+        :param node_data: The PyG NodeStorage object.
+        :type node_data: torch_geometric.data.NodeStorage
+        :return: The last PyG Node id value.
+        :rtype: int
+        """
+        # 1. Map each ArangoDB _key to a PyG node id
+        for adb_key in df["_key"]:
+            adb_map[v_col][adb_key] = i
+            i += 1
+
+        # 2. Set the PyG Node Data
+        self.__set_pyg_data(meta, node_data, df)
+
+        # 3. Maintain the ArangoDB _key values
+        if preserve_key is not None:
+            node_data[preserve_key].extend(list(df["_key"]))
+
+        return i
+
+    def __process_adb_edge_df(
+        self,
+        _: int,
+        df: DataFrame,
+        e_col: str,
+        adb_map: ADBMap,
+        meta: Set[str] | Dict[str, ADBMetagraphValues],
+        preserve_key: Optional[str],
+        data: Union[Data, HeteroData],
+        v_cols: List[str],
+        strict: bool,
+        is_homogeneous: bool,
+    ) -> int:
+        """ArangoDB -> PyG: Process the ArangoDB Edge DataFrame
+        into the PyG EdgeStorage object.
+
+        :param _: Not used.
+        :type _: int
+        :param df: The ArangoDB Edge DataFrame.
+        :type df: pandas.DataFrame
+        :param e_col: The ArangoDB Edge Collection.
+        :type e_col: str
+        :param adb_map: The ArangoDB -> PyG map.
+        :type adb_map: adbpyg_adapter.typings.ADBMap
+        :param meta: The metagraph for the current **e_col**.
+        :type meta: Set[str] | Dict[str, ADBMetagraphValues]
+        :param preserve_key: The PyG key to preserve the ArangoDB _key values.
+        :type preserve_key: Optional[str]
+        :param data: The PyG Data or HeteroData object.
+        :type data: torch_geometric.data.Data | torch_geometric.data.HeteroData
+        :param v_cols: The list of ArangoDB Vertex Collections.
+        :type v_cols: List[str]
+        :param strict: Whether to raise an error if invalid edges are found.
+        :type strict: bool
+        :param is_homogeneous: Whether the ArangoDB graph is homogeneous.
+        :type is_homogeneous: bool
+        :return: The last PyG Edge id value. This is a useless return value,
+            but is needed for type hinting.
+        :rtype: int
+        """
+        # 1. Split the ArangoDB _from & _to IDs into two columns
+        df[["from_col", "from_key"]] = self.__split_adb_ids(df["_from"])
+        df[["to_col", "to_key"]] = self.__split_adb_ids(df["_to"])
+
+        # 2. Iterate over each edge type
+        for (from_col, to_col), count in (
+            df[["from_col", "to_col"]].value_counts().items()
+        ):
+            edge_type = (from_col, e_col, to_col)
+            edge_data: EdgeStorage = data if is_homogeneous else data[edge_type]
+
+            # 3. Check for partial Edge Collection import
+            if from_col not in v_cols or to_col not in v_cols:
+                logger.debug(f"Skipping {edge_type}")
+                continue
+
+            logger.debug(f"Preparing {count} '{edge_type}' edges")
+
+            # 4. Get the edge data corresponding to the current edge type
+            et_df: DataFrame = df[
+                (df["from_col"] == from_col) & (df["to_col"] == to_col)
+            ]
+
+            # 5. Map each ArangoDB from/to _key to the corresponding PyG node id
+            from_nodes = et_df["from_key"].map(adb_map[from_col]).tolist()
+            to_nodes = et_df["to_key"].map(adb_map[to_col]).tolist()
+
+            # 6. Set/Update the PyG Edge Index
+            edge_index = tensor([from_nodes, to_nodes])
+            edge_data.edge_index = torch.cat(
+                (edge_data.get("edge_index", tensor([])), edge_index), dim=1
+            )
+
+            # 7. Deal with invalid edges
+            if torch.any(torch.isnan(edge_data.edge_index)):
+                if strict:
+                    m = f"Invalid edges found in Edge Collection {e_col}, {from_col} -> {to_col}."  # noqa: E501
+                    raise InvalidADBEdgesError(m)
+                else:
+                    # Remove the invalid edges
+                    edge_data.edge_index = edge_data.edge_index[
+                        :, ~torch.any(edge_data.edge_index.isnan(), dim=0)
+                    ]
+
+            # 8. Set the PyG Edge Data
+            self.__set_pyg_data(meta, edge_data, et_df)
+
+            # 9. Maintain the ArangoDB _key values
+            if preserve_key is not None:
+                if preserve_key not in edge_data:
+                    edge_data[preserve_key] = []
+
+                edge_data[preserve_key].extend(list(et_df["_key"]))
+
+        return 1  # Useless return value, but needed for type hinting
+
+    def __split_adb_ids(self, s: Series) -> Series:
+        """AranogDB -> PyG: Helper method to split the ArangoDB IDs
+        within a Series into two columns
+
+        :param s: The Series containing the ArangoDB IDs.
+        :type s: pandas.Series
+        :return: A DataFrame with two columns: the ArangoDB Collection,
+            and the ArangoDB _key.
+        :rtype: pandas.Series
+        """
+        return s.str.split(pat="/", n=1, expand=True)
+
+    def __set_pyg_data(
+        self,
+        meta: Union[Set[str], Dict[str, ADBMetagraphValues]],
+        pyg_data: Union[Data, NodeStorage, EdgeStorage],
+        df: DataFrame,
+    ) -> None:
+        """AranogDB -> PyG: A helper method to build the PyG NodeStorage or
+        EdgeStorage object for the PyG graph. Is responsible for preparing
+        the input **meta** such that it becomes a dictionary, and building
+        PyG-ready tensors from the ArangoDB DataFrame **df**.
+
+        :param meta: The metagraph associated to the current ArangoDB vertex or
+            edge collection. e.g metagraph['vertexCollections']['Users']
+        :type meta: Set[str] |  Dict[str, adbpyg_adapter.typings.ADBMetagraphValues]
+        :param pyg_data: The NodeStorage or EdgeStorage of the current
+            PyG node or edge type.
+        :type pyg_data: torch_geometric.data.storage.(NodeStorage | EdgeStorage)
+        :param df: The DataFrame representing the ArangoDB collection data
+        :type df: pandas.DataFrame
+        """
+        valid_meta: Dict[str, ADBMetagraphValues]
+        valid_meta = meta if type(meta) is dict else {m: m for m in meta}
+
+        for k, v in valid_meta.items():
+            t = self.__build_tensor_from_dataframe(df, k, v)
+
+            if k not in pyg_data:
+                pyg_data[k] = t
+            elif isinstance(pyg_data[k], Tensor):
+                pyg_data[k] = cat((pyg_data[k], t))
+            else:  # pragma: no cover
+                m = f"'{k}' key in PyG Data must point to a Tensor"
+                raise TypeError(m)
+
+    def __build_tensor_from_dataframe(
+        self,
+        adb_df: DataFrame,
+        meta_key: str,
+        meta_val: ADBMetagraphValues,
+    ) -> Tensor:
+        """ArangoDB -> PyG: Constructs a PyG-ready Tensor from a DataFrame,
+        based on the nature of the user-defined metagraph.
+
+        :param adb_df: The DataFrame representing ArangoDB data.
+        :type adb_df: pandas.DataFrame
+        :param meta_key: The current ArangoDB-PyG metagraph key
+        :type meta_key: str
+        :param meta_val: The value mapped to **meta_key** to
+            help convert **df** into a PyG-ready Tensor.
+            e.g the value of `metagraph['vertexCollections']['users']['x']`.
+        :type meta_val: adbpyg_adapter.typings.ADBMetagraphValues
+        :return: A PyG-ready tensor equivalent to the dataframe
+        :rtype: torch.Tensor
+        :raise adbpyg_adapter.exceptions.ADBMetagraphError: If invalid **meta_val**.
+        """
+        m = f"__build_tensor_from_dataframe(df, '{meta_key}', {type(meta_val)})"
+        logger.debug(m)
+
+        if type(meta_val) is str:
+            return tensor(adb_df[meta_val].to_list())
+
+        if type(meta_val) is dict:
+            data = []
+            for attr, encoder in meta_val.items():
+                if encoder is None:
+                    data.append(tensor(adb_df[attr].to_list()))
+                elif callable(encoder):
+                    data.append(encoder(adb_df[attr]))
+                else:  # pragma: no cover
+                    msg = f"Invalid encoder for ArangoDB attribute '{attr}': {encoder}"
+                    raise ADBMetagraphError(msg)
+
+            return cat(data, dim=-1)
+
+        if callable(meta_val):
+            # **meta_val** is a user-defined function that returns a tensor
+            user_defined_result = meta_val(adb_df)
+
+            if type(user_defined_result) is not Tensor:  # pragma: no cover
+                msg = f"Invalid return type for function {meta_val} ('{meta_key}')"
+                raise ADBMetagraphError(msg)
+
+            return user_defined_result
+
+        raise ADBMetagraphError(f"Invalid {meta_val} type")  # pragma: no cover
+
+    ############################
+    # Private: PyG -> ArangoDB #
+    ############################
 
     def __get_node_and_edge_types(
         self,
@@ -711,8 +1032,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         is_explicit_metagraph: bool,
         is_homogeneous: bool,
     ) -> Tuple[List[str], List[EdgeType]]:
-        """Returns the node & edge types of the PyG graph, based on the
-            metagraph and whether the graph has default canonical etypes.
+        """PyG -> ArangoDB: Returns the node & edge types of the PyG graph,
+        based on the metagraph and whether the graph has default
+        canonical etypes.
+
         :param name: The PyG graph name.
         :type name: str
         :param pyg_g: The existing PyG graph.
@@ -744,45 +1067,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         return node_types, edge_types
 
-    def __create_adb_graph(
-        self,
-        name: str,
-        overwrite_graph: bool,
-        node_types: List[str],
-        edge_types: List[EdgeType],
-    ) -> ADBGraph:
-        """Creates an ArangoDB graph.
-        :param name: The ArangoDB graph name.
-        :type name: str
-        :param overwrite_graph: Overwrites the graph if it already exists.
-            Does not drop associated collections. Defaults to False.
-        :type overwrite_graph: bool
-        :param node_types: A list of strings representing the PyG node types.
-        :type node_types: List[str]
-        :param edge_types: A list of string triplets (str, str, str) for
-            source node type, edge type and destination node type.
-        :type edge_types: List[torch_geometric.typing.EdgeType]
-        :return: The ArangoDB Graph API wrapper.
-        :rtype: arango.graph.Graph
-        """
-        if overwrite_graph:
-            logger.debug("Overwrite graph flag is True. Deleting old graph.")
-            self.__db.delete_graph(name, ignore_missing=True)
-
-        if self.__db.has_graph(name):
-            return self.__db.graph(name)
-
-        edge_definitions = self.__etypes_to_edefinitions(edge_types)
-        orphan_collections = self.__ntypes_to_ocollections(node_types, edge_types)
-
-        return self.__db.create_graph(  # type: ignore[return-value]
-            name,
-            edge_definitions,
-            orphan_collections,
-        )
-
     def __etypes_to_edefinitions(self, edge_types: List[EdgeType]) -> List[Json]:
-        """Converts PyG edge_types to ArangoDB edge_definitions
+        """PyG -> ArangoDB: Converts PyG edge_types to ArangoDB edge_definitions
 
         :param edge_types: A list of string triplets (str, str, str) for
             source node type, edge type and destination node type.
@@ -828,7 +1114,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
     def __ntypes_to_ocollections(
         self, node_types: List[str], edge_types: List[EdgeType]
     ) -> List[str]:
-        """Converts PyG node_types to ArangoDB orphan collections, if any.
+        """PyG -> ArangoDB: Converts PyG node_types to ArangoDB
+        orphan collections, if any.
 
         :param node_types: A list of strings representing the PyG node types.
         :type node_types: List[str]
@@ -847,131 +1134,175 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         orphan_collections = set(node_types) ^ non_orphan_collections
         return list(orphan_collections)
 
-    def __fetch_adb_docs(
+    def __create_adb_graph(
         self,
-        col: str,
-        meta: Union[Set[str], Dict[str, ADBMetagraphValues]],
-        query_options: Any,
-    ) -> Cursor:
-        """Fetches ArangoDB documents within a collection. Returns the
-            documents in a DataFrame.
+        name: str,
+        overwrite_graph: bool,
+        node_types: List[str],
+        edge_types: List[EdgeType],
+    ) -> ADBGraph:
+        """PyG -> ArangoDB: Creates the ArangoDB graph.
 
-        :param col: The ArangoDB collection.
-        :type col: str
-        :param meta: The MetaGraph associated to **col**
-        :type meta: Set[str] | Dict[str, adbpyg_adapter.typings.ADBMetagraphValues]
-        :param query_options: Keyword arguments to specify AQL query options
-            when fetching documents from the ArangoDB instance.
-        :type query_options: Any
-        :return: A DataFrame representing the ArangoDB documents.
+        :param name: The ArangoDB graph name.
+        :type name: str
+        :param overwrite_graph: Overwrites the graph if it already exists.
+            Does not drop associated collections. Defaults to False.
+        :type overwrite_graph: bool
+        :param node_types: A list of strings representing the PyG node types.
+        :type node_types: List[str]
+        :param edge_types: A list of string triplets (str, str, str) for
+            source node type, edge type and destination node type.
+        :type edge_types: List[torch_geometric.typing.EdgeType]
+        :return: The ArangoDB Graph API wrapper.
+        :rtype: arango.graph.Graph
+        """
+        if overwrite_graph:
+            logger.debug("Overwrite graph flag is True. Deleting old graph.")
+            self.__db.delete_graph(name, ignore_missing=True)
+
+        if self.__db.has_graph(name):
+            return self.__db.graph(name)
+
+        edge_definitions = self.__etypes_to_edefinitions(edge_types)
+        orphan_collections = self.__ntypes_to_ocollections(node_types, edge_types)
+
+        return self.__db.create_graph(  # type: ignore[return-value]
+            name,
+            edge_definitions,
+            orphan_collections,
+        )
+
+    def __process_pyg_node_batch(
+        self,
+        n_type: str,
+        node_data: NodeStorage,
+        meta: Union[Set[str], Dict[Any, PyGMetagraphValues]],
+        pyg_map: PyGMap,
+        is_explicit_metagraph: bool,
+        is_custom_controller: bool,
+        start_index: int,
+        end_index: int,
+    ) -> DataFrame:
+        """PyG -> ArangoDB: Processes the PyG Node batch
+        into an ArangoDB DataFrame.
+
+        :param n_type: The PyG node type.
+        :type n_type: str
+        :param node_data: The PyG NodeStorage object.
+        :type node_data: torch_geometric.data.NodeStorage
+        :param meta: The metagraph for the current **n_type**.
+        :type meta: Set[str] | Dict[Any, adbpyg_adapter.typings.PyGMetagraphValues]
+        :param pyg_map: The PyG -> ArangoDB map.
+        :type pyg_map: adbpyg_adapter.typings.PyGMap
+        :param is_explicit_metagraph: Take the metagraph at face value or not.
+        :type is_explicit_metagraph: bool
+        :param is_custom_controller: Whether a custom controller is used.
+        :type is_custom_controller: bool
+        :param start_index: The start index of the current batch.
+        :type start_index: int
+        :param end_index: The end index of the current batch.
+        :type end_index: int
+        :return: The ArangoDB DataFrame representing the PyG Node batch.
         :rtype: pandas.DataFrame
         """
+        # 1. Set the ArangoDB Node Data
+        df = self.__set_adb_data(
+            DataFrame(index=range(start_index, end_index)),
+            meta,
+            node_data,
+            node_data.num_nodes,
+            start_index,
+            end_index,
+            is_explicit_metagraph,
+        )
 
-        def get_aql_return_value(
-            meta: Union[Set[str], Dict[str, ADBMetagraphValues]]
-        ) -> str:
-            """Helper method to formulate the AQL `RETURN` value based on
-            the document attributes specified in **meta**
-            """
-            attributes = []
+        # 2. Update the PyG Map
+        if "_id" in df:
+            pyg_map[n_type].update(df["_id"].to_dict())
+        else:
+            df["_key"] = df.get("_key", df.index.astype(str))
+            pyg_map[n_type].update((n_type + "/" + df["_key"]).to_dict())
 
-            if type(meta) is set:
-                attributes = list(meta)
+        # 3. Apply the ArangoDB Node Controller (if provided)
+        if is_custom_controller:
+            f = lambda n: self.__cntrl._prepare_pyg_node(n, n_type)
+            df = df.apply(f, axis=1)
 
-            elif type(meta) is dict:
-                for value in meta.values():
-                    if type(value) is str:
-                        attributes.append(value)
-                    elif type(value) is dict:
-                        attributes.extend(list(value.keys()))
-                    elif callable(value):
-                        # Cannot determine which attributes to extract if UDFs are used
-                        # Therefore we just return the entire document
-                        return "doc"
+        return df
 
-            return f"""
-                MERGE(
-                    {{ _key: doc._key, _from: doc._from, _to: doc._to }},
-                    KEEP(doc, {list(attributes)})
-                )
-            """
-
-        with progress(
-            f"(ADB → PyG): {col}",
-            text_style="#8929C2",
-            spinner_style="#40A6F5",
-        ) as p:
-            p.add_task("__fetch_adb_docs")
-            return self.__db.aql.execute(  # type: ignore
-                f"FOR doc IN @@col RETURN {get_aql_return_value(meta)}",
-                bind_vars={"@col": col},
-                **{**{"stream": True}, **query_options},
-            )
-
-    def __insert_adb_docs(
-        self, doc_type: Union[str, EdgeType], df: DataFrame, kwargs: Any
-    ) -> None:
-        """Insert ArangoDB documents into their ArangoDB collection.
-
-        :param doc_type: The node or edge type of the soon-to-be ArangoDB documents
-        :type doc_type: str | tuple[str, str, str]
-        :param df: To-be-inserted ArangoDB documents, formatted as a DataFrame
-        :type df: pandas.DataFrame
-        :param kwargs: Keyword arguments to specify additional
-            parameters for ArangoDB document insertion. Full parameter list:
-            https://docs.python-arango.com/en/main/specs.html#arango.collection.Collection.import_bulk
-        """
-        col = doc_type if type(doc_type) is str else doc_type[1]
-
-        with progress(
-            f"(PyG → ADB): {doc_type} ({len(df)})",
-            text_style="#97C423",
-            spinner_style="#994602",
-        ) as p:
-            p.add_task("__insert_adb_docs")
-
-            docs = df.to_dict("records")
-            result = self.__db.collection(col).import_bulk(docs, **kwargs)
-            logger.debug(result)
-            df.drop(df.index, inplace=True)
-
-    def __split_adb_ids(self, s: Series) -> Series:
-        """Helper method to split the ArangoDB IDs within a Series into two columns"""
-        return s.str.split(pat="/", n=1, expand=True)
-
-    def __set_pyg_data(
+    def __process_pyg_edge_batch(
         self,
-        meta: Union[Set[str], Dict[str, ADBMetagraphValues]],
-        pyg_data: Union[Data, NodeStorage, EdgeStorage],
-        df: DataFrame,
-    ) -> None:
-        """A helper method to build the PyG NodeStorage or EdgeStorage object
-        for the PyG graph. Is responsible for preparing the input **meta** such
-        that it becomes a dictionary, and building PyG-ready tensors from the
-        ArangoDB DataFrame **df**.
+        e_type: EdgeType,
+        edge_data: EdgeStorage,
+        meta: Union[Set[str], Dict[Any, PyGMetagraphValues]],
+        pyg_map: PyGMap,
+        is_explicit_metagraph: bool,
+        is_custom_controller: bool,
+        start_index: int,
+        end_index: int,
+    ) -> DataFrame:
+        """PyG -> ArangoDB: Processes the PyG Edge batch
+        into an ArangoDB DataFrame.
 
-        :param meta: The metagraph associated to the current ArangoDB vertex or
-            edge collection. e.g metagraph['vertexCollections']['Users']
-        :type meta: Set[str] |  Dict[str, adbpyg_adapter.typings.ADBMetagraphValues]
-        :param pyg_data: The NodeStorage or EdgeStorage of the current
-            PyG node or edge type.
-        :type pyg_data: torch_geometric.data.storage.(NodeStorage | EdgeStorage)
-        :param df: The DataFrame representing the ArangoDB collection data
-        :type df: pandas.DataFrame
+        :param e_type: The PyG edge type.
+        :type e_type: torch_geometric.typing.EdgeType
+        :param edge_data: The PyG EdgeStorage object.
+        :type edge_data: torch_geometric.data.EdgeStorage
+        :param meta: The metagraph for the current **e_type**.
+        :type meta: Set[str] | Dict[Any, adbpyg_adapter.typings.PyGMetagraphValues]
+        :param pyg_map: The PyG -> ArangoDB map.
+        :type pyg_map: adbpyg_adapter.typings.PyGMap
+        :param is_explicit_metagraph: Take the metagraph at face value or not.
+        :type is_explicit_metagraph: bool
+        :param is_custom_controller: Whether a custom controller is used.
+        :type is_custom_controller: bool
+        :param start_index: The start index of the current batch.
+        :type start_index: int
+        :param end_index: The end index of the current batch.
+        :type end_index: int
+        :return: The ArangoDB DataFrame representing the PyG Edge batch.
+        :rtype: pandas.DataFrame
         """
-        valid_meta: Dict[str, ADBMetagraphValues]
-        valid_meta = meta if type(meta) is dict else {m: m for m in meta}
+        src_n_type, _, dst_n_type = e_type
 
-        for k, v in valid_meta.items():
-            t = self.__build_tensor_from_dataframe(df, k, v)
+        # 1. Fetch the Edge Index of the current batch
+        edge_index = edge_data.edge_index[:, start_index:end_index]
 
-            if k not in pyg_data:
-                pyg_data[k] = t
-            elif isinstance(pyg_data[k], Tensor):
-                pyg_data[k] = cat((pyg_data[k], t))
-            else:  # pragma: no cover
-                m = f"'{k}' key in PyG Data must point to a Tensor"
-                raise TypeError(m)
+        # 2. Set the ArangoDB Edge Data
+        df = self.__set_adb_data(
+            DataFrame(
+                zip(*(edge_index.tolist())),
+                index=range(start_index, end_index),
+                columns=["_from", "_to"],
+            ),
+            meta,
+            edge_data,
+            edge_data.num_edges,
+            start_index,
+            end_index,
+            is_explicit_metagraph,
+        )
+
+        # 3. Set the _from column
+        df["_from"] = (
+            df["_from"].map(pyg_map[src_n_type])
+            if pyg_map[src_n_type]
+            else src_n_type + "/" + df["_from"].astype(str)
+        )
+
+        # 4. Set the _to column
+        df["_to"] = (
+            df["_to"].map(pyg_map[dst_n_type])
+            if pyg_map[dst_n_type]
+            else dst_n_type + "/" + df["_to"].astype(str)
+        )
+
+        # 5. Apply the ArangoDB Edge Controller (if provided)
+        if is_custom_controller:
+            f = lambda e: self.__cntrl._prepare_pyg_edge(e, e_type)
+            df = df.apply(f, axis=1)
+
+        return df
 
     def __set_adb_data(
         self,
@@ -983,11 +1314,11 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         end_index: int,
         is_explicit_metagraph: bool,
     ) -> DataFrame:
-        """A helper method to build the ArangoDB Dataframe for the given
-        collection. Is responsible for creating "sub-DataFrames" from PyG tensors
-        or lists, and appending them to the main dataframe **df**. If the data
-        does not adhere to the supported types, or is not of specific length,
-        then it is silently skipped.
+        """PyG -> ArangoDB: A helper method to build the ArangoDB Dataframe for
+        the given collection. Is responsible for creating "sub-DataFrames"
+        from PyG tensors or lists, and appending them to the main dataframe
+        **df**. If the data does not adhere to the supported types, or is
+        not of specific length, then it is silently skipped.
 
         :param df: The main ArangoDB DataFrame containing (at minimum)
             the vertex/edge _id or _key attribute.
@@ -1051,59 +1382,6 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         return df
 
-    def __build_tensor_from_dataframe(
-        self,
-        adb_df: DataFrame,
-        meta_key: str,
-        meta_val: ADBMetagraphValues,
-    ) -> Tensor:
-        """Constructs a PyG-ready Tensor from a DataFrame, based on
-        the nature of the user-defined metagraph.
-
-        :param adb_df: The DataFrame representing ArangoDB data.
-        :type adb_df: pandas.DataFrame
-        :param meta_key: The current ArangoDB-PyG metagraph key
-        :type meta_key: str
-        :param meta_val: The value mapped to **meta_key** to
-            help convert **df** into a PyG-ready Tensor.
-            e.g the value of `metagraph['vertexCollections']['users']['x']`.
-        :type meta_val: adbpyg_adapter.typings.ADBMetagraphValues
-        :return: A PyG-ready tensor equivalent to the dataframe
-        :rtype: torch.Tensor
-        :raise adbpyg_adapter.exceptions.ADBMetagraphError: If invalid **meta_val**.
-        """
-        logger.debug(
-            f"__build_tensor_from_dataframe(df, '{meta_key}', {type(meta_val)})"
-        )
-
-        if type(meta_val) is str:
-            return tensor(adb_df[meta_val].to_list())
-
-        if type(meta_val) is dict:
-            data = []
-            for attr, encoder in meta_val.items():
-                if encoder is None:
-                    data.append(tensor(adb_df[attr].to_list()))
-                elif callable(encoder):
-                    data.append(encoder(adb_df[attr]))
-                else:  # pragma: no cover
-                    msg = f"Invalid encoder for ArangoDB attribute '{attr}': {encoder}"
-                    raise ADBMetagraphError(msg)
-
-            return cat(data, dim=-1)
-
-        if callable(meta_val):
-            # **meta_val** is a user-defined function that returns a tensor
-            user_defined_result = meta_val(adb_df)
-
-            if type(user_defined_result) is not Tensor:  # pragma: no cover
-                msg = f"Invalid return type for function {meta_val} ('{meta_key}')"
-                raise ADBMetagraphError(msg)
-
-            return user_defined_result
-
-        raise ADBMetagraphError(f"Invalid {meta_val} type")  # pragma: no cover
-
     def __build_dataframe_from_tensor(
         self,
         pyg_tensor: Tensor,
@@ -1112,7 +1390,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         meta_key: Any,
         meta_val: PyGMetagraphValues,
     ) -> DataFrame:
-        """Builds a DataFrame from PyG Tensor, based on
+        """PyG -> ArangoDB: Builds a DataFrame from PyG Tensor, based on
         the nature of the user-defined metagraph.
 
         :param pyg_tensor: The Tensor representing PyG data.
@@ -1180,3 +1458,37 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             return user_defined_result
 
         raise PyGMetagraphError(f"Invalid {meta_val} type")  # pragma: no cover
+
+    def __insert_adb_docs(
+        self,
+        spinner_progress: Progress,
+        df: DataFrame,
+        doc_type: Union[str, EdgeType],
+        **import_options: Any,
+    ) -> None:
+        """PyG -> ArangoDB: Insert ArangoDB documents into their ArangoDB collection.
+
+        :param spinner_progress: The spinner progress bar.
+        :type spinner_progress: rich.progress.Progress
+        :param df: To-be-inserted ArangoDB documents, formatted as a DataFrame
+        :type df: pandas.DataFrame
+        :param doc_type: The node or edge type of the soon-to-be ArangoDB documents
+        :type doc_type: str | tuple[str, str, str]
+        :param import_options: Keyword arguments to specify additional
+            parameters for ArangoDB document insertion. Full parameter list:
+            https://docs.python-arango.com/en/main/specs.html#arango.collection.Collection.import_bulk
+        :param import_options: Any
+        """
+        col = doc_type[1] if isinstance(doc_type, tuple) else doc_type
+
+        action = f"ADB Import: '{col}' ({len(df)})"
+        spinner_progress_task = spinner_progress.add_task("", action=action)
+
+        docs = df.to_dict("records")
+        result = self.__db.collection(col).import_bulk(docs, **import_options)
+        logger.debug(result)
+
+        df.drop(df.index, inplace=True)
+
+        spinner_progress.stop_task(spinner_progress_task)
+        spinner_progress.update(spinner_progress_task, visible=False)

@@ -2,7 +2,14 @@ import logging
 import os
 from typing import Any, Dict, Set, Union
 
-from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TaskProgressColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
 
 from .exceptions import ADBMetagraphError, PyGMetagraphError
 
@@ -16,18 +23,34 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 
 
-def progress(
+def get_export_spinner_progress(
     text: str,
-    text_style: str = "none",
-    spinner_name: str = "aesthetic",
-    spinner_style: str = "#5BC0DE",
-    transient: bool = False,
 ) -> Progress:
     return Progress(
-        TextColumn(text, style=text_style),
-        SpinnerColumn(spinner_name, spinner_style),
+        TextColumn(text),
+        SpinnerColumn("aesthetic", "#5BC0DE"),
         TimeElapsedColumn(),
-        transient=transient,
+        transient=True,
+    )
+
+
+def get_import_spinner_progress(text: str) -> Progress:
+    return Progress(
+        TextColumn(text),
+        TextColumn("{task.fields[action]}"),
+        SpinnerColumn("aesthetic", "#5BC0DE"),
+        TimeElapsedColumn(),
+        transient=True,
+    )
+
+
+def get_bar_progress(text: str, color: str) -> Progress:
+    return Progress(
+        TextColumn(text),
+        BarColumn(complete_style=color, finished_style=color),
+        TaskProgressColumn(),
+        TextColumn("({task.completed}/{task.total})"),
+        TimeElapsedColumn(),
     )
 
 
