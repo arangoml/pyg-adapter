@@ -738,7 +738,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         process_adb_df: Callable[..., int],
         col: str,
         adb_map: ADBMap,
-        meta: Set[str] | Dict[str, ADBMetagraphValues],
+        meta: Union[Set[str], Dict[str, ADBMetagraphValues]],
         preserve_key: Optional[str],
         **kwargs: Any,
     ) -> None:
@@ -788,7 +788,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         df: DataFrame,
         v_col: str,
         adb_map: ADBMap,
-        meta: Set[str] | Dict[str, ADBMetagraphValues],
+        meta: Union[Set[str], Dict[str, ADBMetagraphValues]],
         preserve_key: Optional[str],
         node_data: NodeStorage,
     ) -> int:
@@ -832,7 +832,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         df: DataFrame,
         e_col: str,
         adb_map: ADBMap,
-        meta: Set[str] | Dict[str, ADBMetagraphValues],
+        meta: Union[Set[str], Dict[str, ADBMetagraphValues]],
         preserve_key: Optional[str],
         data: Union[Data, HeteroData],
         v_cols: List[str],
