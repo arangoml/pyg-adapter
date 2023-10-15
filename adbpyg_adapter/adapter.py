@@ -629,7 +629,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             end_index = min(edge_data_batch_size, edge_data.num_edges)
             batches = ceil(edge_data.num_edges / edge_data_batch_size)
 
-            bar_progress = get_bar_progress(f"(PyG → ADB): '{e_type}'", "#994602")
+            bar_progress = get_bar_progress(f"(PyG → ADB): {e_type}", "#994602")
             bar_progress_task = bar_progress.add_task(e_type, total=edge_data.num_edges)
 
             with Live(Group(bar_progress, spinner_progress)):
@@ -882,7 +882,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 logger.debug(f"Skipping {edge_type}")
                 continue
 
-            logger.debug(f"Preparing {count} '{edge_type}' edges")
+            logger.debug(f"Preparing {count} {edge_type} edges")
 
             # 4. Get the edge data corresponding to the current edge type
             et_df: DataFrame = df[
