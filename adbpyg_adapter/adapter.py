@@ -748,13 +748,13 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :type progress_color: str
         :param cursor: The ArangoDB cursor for the current **col**.
         :type cursor: arango.cursor.Cursor
+        :param col_size: The size of **col**.
+        :type col_size: int
         :param process_adb_df: The function to process the cursor data
             (in the form of a Dataframe).
         :type process_adb_df: Callable
         :param col: The ArangoDB collection for the current **cursor**.
         :type col: str
-        :param col_size: The size of **col**.
-        :type col_size: int
         :param adb_map: The ArangoDB -> PyG map.
         :type adb_map: adbpyg_adapter.typings.ADBMap
         :param meta: The metagraph for the current **col**.
@@ -1211,9 +1211,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             meta,
             node_data,
             node_data.num_nodes,
+            is_explicit_metagraph,
             start_index,
             end_index,
-            is_explicit_metagraph,
         )
 
         # 2. Update the PyG Map
@@ -1278,9 +1278,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             meta,
             edge_data,
             edge_data.num_edges,
+            is_explicit_metagraph,
             start_index,
             end_index,
-            is_explicit_metagraph,
         )
 
         # 3. Set the _from column
@@ -1310,9 +1310,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         meta: Union[Set[str], Dict[Any, PyGMetagraphValues]],
         pyg_data: Union[Data, NodeStorage, EdgeStorage],
         pyg_data_size: int,
+        is_explicit_metagraph: bool,
         start_index: int,
         end_index: int,
-        is_explicit_metagraph: bool,
     ) -> DataFrame:
         """PyG -> ArangoDB: A helper method to build the ArangoDB Dataframe for
         the given collection. Is responsible for creating "sub-DataFrames"
@@ -1332,13 +1332,13 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :param pyg_data_size: The size of the NodeStorage or EdgeStorage of the
             current PyG node or edge type.
         :type pyg_data_size: int
+        :param is_explicit_metagraph: Take the metagraph at face value or not.
+        :type is_explicit_metagraph: bool
         :param start_index: The starting index of the current batch to process.
         :type start_index: int
         :param end_index: The ending index of the current batch to process.
         :type end_index: int
         :type pyg_data: torch_geometric.data.storage.(NodeStorage | EdgeStorage)
-        :param is_explicit_metagraph: Take the metagraph at face value or not.
-        :type is_explicit_metagraph: bool
         :return: The completed DataFrame for the (soon-to-be) ArangoDB collection.
         :rtype: pandas.DataFrame
         :raise ValueError: If an unsupported PyG data value is found.
