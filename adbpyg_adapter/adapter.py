@@ -351,6 +351,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         v_cols: Set[str],
         e_cols: Set[str],
         preserve_adb_keys: bool = False,
+        strict: bool = True,
         **adb_export_kwargs: Any,
     ) -> Union[Data, HeteroData]:
         """Create a PyG graph from ArangoDB collections. Due to risk of
@@ -377,6 +378,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             ArangoDB graph is Heterogeneous, the ArangoDB keys will be preserved
             under `_key` in your PyG graph.
         :type preserve_adb_keys: bool
+        :param strict: Set fault tolerance when loading a graph from ArangoDB. If set
+            to false, this will ignore invalid edges (e.g. dangling/half edges).
+        :type strict: bool
         :param adb_export_kwargs: Keyword arguments to specify AQL query options when
             fetching documents from the ArangoDB instance. Full parameter list:
             https://docs.python-arango.com/en/main/specs.html#arango.aql.AQL.execute
@@ -390,10 +394,16 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             "edgeCollections": {col: dict() for col in e_cols},
         }
 
-        return self.arangodb_to_pyg(name, metagraph, preserve_adb_keys, **adb_export_kwargs)
+        return self.arangodb_to_pyg(
+            name, metagraph, preserve_adb_keys, strict, **adb_export_kwargs
+        )
 
     def arangodb_graph_to_pyg(
-        self, name: str, preserve_adb_keys: bool = False, **adb_export_kwargs: Any
+        self,
+        name: str,
+        preserve_adb_keys: bool = False,
+        strict: bool = True,
+        **adb_export_kwargs: Any,
     ) -> Union[Data, HeteroData]:
         """Create a PyG graph from an ArangoDB graph. Due to risk of
             ambiguity, this method DOES NOT transfer ArangoDB attributes to PyG.
@@ -415,6 +425,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             ArangoDB graph is Heterogeneous, the ArangoDB keys will be preserved
             under `_key` in your PyG graph.
         :type preserve_adb_keys: bool
+        :param strict: Set fault tolerance when loading a graph from ArangoDB. If set
+            to false, this will ignore invalid edges (e.g. dangling/half edges).
+        :type strict: bool
         :param adb_export_kwargs: Keyword arguments to specify AQL query options when
             fetching documents from the ArangoDB instance. Full parameter list:
             https://docs.python-arango.com/en/main/specs.html#arango.aql.AQL.execute
@@ -429,7 +442,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         e_cols: Set[str] = {c["edge_collection"] for c in edge_definitions}
 
         return self.arangodb_collections_to_pyg(
-            name, v_cols, e_cols, preserve_adb_keys, **adb_export_kwargs
+            name, v_cols, e_cols, preserve_adb_keys, strict, **adb_export_kwargs
         )
 
     ###########################
