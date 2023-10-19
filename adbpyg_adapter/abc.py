@@ -37,7 +37,7 @@ class Abstract_ADBPyG_Adapter(ABC):
         metagraph: PyGMetagraph = {},
         explicit_metagraph: bool = True,
         overwrite_graph: bool = False,
-        **import_options: Any,
+        **adb_import_kwargs: Any,
     ) -> ArangoDBGraph:
         raise NotImplementedError  # pragma: no cover
 

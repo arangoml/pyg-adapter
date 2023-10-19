@@ -72,6 +72,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             raise TypeError(msg)
 
         self.__db = db
+        self.__async_db = db.begin_async_execution(return_result=False)
         self.__cntrl = controller
 
         logger.info(f"Instantiated ADBPyG_Adapter with database '{db.name}'")
@@ -443,7 +444,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         explicit_metagraph: bool = True,
         overwrite_graph: bool = False,
         batch_size: Optional[int] = None,
-        **import_options: Any,
+        use_async: bool = False,
+        **adb_import_kwargs: Any,
     ) -> ADBGraph:
         """Create an ArangoDB graph from a PyG graph.
 
@@ -487,10 +489,13 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             **batch_size**. Defaults to `None`, which processes each
             NodeStorage & EdgeStorage in one batch.
         :type batch_size: int
-        :param import_options: Keyword arguments to specify additional
+        :param use_async: Performs asynchronous ArangoDB ingestion if enabled.
+            Defaults to False.
+        :type use_async: bool
+        :param adb_import_kwargs: Keyword arguments to specify additional
             parameters for ArangoDB document insertion. Full parameter list:
             https://docs.python-arango.com/en/main/specs.html#arango.collection.Collection.import_bulk
-        :type import_options: Any
+        :type adb_import_kwargs: Any
         :return: The ArangoDB Graph API wrapper.
         :rtype: arango.graph.Graph
         :raise adbpyg_adapter.exceptions.PyGMetagraphError: If invalid metagraph.
@@ -599,13 +604,11 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                         end_index,
                     )
 
-                    bar_progress.advance(
-                        bar_progress_task, advance=end_index - start_index
-                    )
+                    bar_progress.advance(bar_progress_task, advance=len(df))
 
                     # 2. Insert the ArangoDB Node Documents
                     self.__insert_adb_docs(
-                        spinner_progress, df, n_type, **import_options
+                        spinner_progress, df, n_type, use_async, **adb_import_kwargs
                     )
 
                     # 3. Update the batch indices
@@ -646,13 +649,11 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                         end_index,
                     )
 
-                    bar_progress.advance(
-                        bar_progress_task, advance=end_index - start_index
-                    )
+                    bar_progress.advance(bar_progress_task, advance=len(df))
 
                     # 2. Insert the ArangoDB Edge Documents
                     self.__insert_adb_docs(
-                        spinner_progress, df, e_type, **import_options
+                        spinner_progress, df, e_type[1], use_async, **adb_import_kwargs
                     )
 
                     # 3. Update the batch indices
@@ -672,7 +673,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         self,
         col: str,
         meta: Union[Set[str], Dict[str, ADBMetagraphValues]],
-        **export_options: Any,
+        **adb_export_kwargs: Any,
     ) -> Tuple[Cursor, int]:
         """ArangoDB -> PyG: Fetches ArangoDB documents within a collection.
         Returns the documents in a DataFrame.
@@ -681,9 +682,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :type col: str
         :param meta: The MetaGraph associated to **col**
         :type meta: Set[str] | Dict[str, adbpyg_adapter.typings.ADBMetagraphValues]
-        :param export_options: Keyword arguments to specify AQL query options
+        :param adb_export_kwargs: Keyword arguments to specify AQL query options
             when fetching documents from the ArangoDB instance.
-        :type export_options: Any
+        :type adb_export_kwargs: Any
         :return: A DataFrame representing the ArangoDB documents.
         :rtype: pandas.DataFrame
         """
@@ -725,7 +726,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             cursor: Cursor = self.__db.aql.execute(  # type: ignore
                 f"FOR doc IN @@col RETURN {get_aql_return_value(meta)}",
                 bind_vars={"@col": col},
-                **{**export_options, **{"stream": True}},
+                **{**adb_export_kwargs, **{"stream": True}},
             )
 
             return cursor, col_size
@@ -1463,8 +1464,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         self,
         spinner_progress: Progress,
         df: DataFrame,
-        doc_type: Union[str, EdgeType],
-        **import_options: Any,
+        col: str,
+        use_async: bool,
+        **adb_import_kwargs: Any,
     ) -> None:
         """PyG -> ArangoDB: Insert ArangoDB documents into their ArangoDB collection.
 
@@ -1472,20 +1474,21 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :type spinner_progress: rich.progress.Progress
         :param df: To-be-inserted ArangoDB documents, formatted as a DataFrame
         :type df: pandas.DataFrame
-        :param doc_type: The node or edge type of the soon-to-be ArangoDB documents
-        :type doc_type: str | tuple[str, str, str]
-        :param import_options: Keyword arguments to specify additional
+        :param col: The ArangoDB collection name.
+        :type col: str
+        :param use_async: Performs asynchronous ArangoDB ingestion if enabled.
+        :type use_async: bool
+        :param adb_import_kwargs: Keyword arguments to specify additional
             parameters for ArangoDB document insertion. Full parameter list:
             https://docs.python-arango.com/en/main/specs.html#arango.collection.Collection.import_bulk
-        :param import_options: Any
+        :param adb_import_kwargs: Any
         """
-        col = doc_type[1] if isinstance(doc_type, tuple) else doc_type
-
         action = f"ADB Import: '{col}' ({len(df)})"
         spinner_progress_task = spinner_progress.add_task("", action=action)
 
         docs = df.to_dict("records")
-        result = self.__db.collection(col).import_bulk(docs, **import_options)
+        db = self.__async_db if use_async else self.__db
+        result = db.collection(col).import_bulk(docs, **adb_import_kwargs)
         logger.debug(result)
 
         df.drop(df.index, inplace=True)
