@@ -7,7 +7,7 @@ from typing import Any, Callable, DefaultDict, Dict, List, Optional, Set, Tuple,
 
 import torch
 from arango.cursor import Cursor
-from arango.database import Database
+from arango.database import StandardDatabase
 from arango.graph import Graph as ADBGraph
 from pandas import DataFrame, Series
 from rich.console import Group
@@ -57,14 +57,14 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
     def __init__(
         self,
-        db: Database,
+        db: StandardDatabase,
         controller: ADBPyG_Controller = ADBPyG_Controller(),
         logging_lvl: Union[str, int] = logging.INFO,
     ):
         self.set_logging(logging_lvl)
 
-        if not isinstance(db, Database):
-            msg = "**db** parameter must inherit from arango.database.Database"
+        if not isinstance(db, StandardDatabase):
+            msg = "**db** parameter must inherit from arango.database.StandardDatabase"
             raise TypeError(msg)
 
         if not isinstance(controller, ADBPyG_Controller):
@@ -78,7 +78,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         logger.info(f"Instantiated ADBPyG_Adapter with database '{db.name}'")
 
     @property
-    def db(self) -> Database:
+    def db(self) -> StandardDatabase:
         return self.__db  # pragma: no cover
 
     @property
@@ -98,7 +98,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         metagraph: ADBMetagraph,
         preserve_adb_keys: bool = False,
         strict: bool = True,
-        **query_options: Any,
+        **adb_export_kwargs: Any,
     ) -> Union[Data, HeteroData]:
         """Create a PyG graph from ArangoDB data. DOES carry
         over node/edge features/labels, via the **metagraph**.
@@ -149,10 +149,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :param strict: Set fault tolerance when loading a graph from ArangoDB. If set
             to false, this will ignore invalid edges (e.g. dangling/half edges).
         :type strict: bool
-        :param query_options: Keyword arguments to specify AQL query options when
+        :param adb_export_kwargs: Keyword arguments to specify AQL query options when
             fetching documents from the ArangoDB instance. Full parameter list:
             https://docs.python-arango.com/en/main/specs.html#arango.aql.AQL.execute
-        :type query_options: Any
+        :type adb_export_kwargs: Any
         :return: A PyG Data or HeteroData object
         :rtype: torch_geometric.data.Data | torch_geometric.data.HeteroData
         :raise adbpyg_adapter.exceptions.ADBMetagraphError: If invalid metagraph.
@@ -294,7 +294,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
             # 1. Fetch ArangoDB vertices
             v_col_cursor, v_col_size = self.__fetch_adb_docs(
-                v_col, meta, **query_options
+                v_col, meta, **adb_export_kwargs
             )
 
             # 2. Process ArangoDB vertices
@@ -323,7 +323,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
             # 1. Fetch ArangoDB edges
             e_col_cursor, e_col_size = self.__fetch_adb_docs(
-                e_col, meta, **query_options
+                e_col, meta, **adb_export_kwargs
             )
 
             # 2. Process ArangoDB edges
@@ -351,7 +351,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         v_cols: Set[str],
         e_cols: Set[str],
         preserve_adb_keys: bool = False,
-        **query_options: Any,
+        **adb_export_kwargs: Any,
     ) -> Union[Data, HeteroData]:
         """Create a PyG graph from ArangoDB collections. Due to risk of
         ambiguity, this method DOES NOT transfer ArangoDB attributes to PyG.
@@ -377,10 +377,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             ArangoDB graph is Heterogeneous, the ArangoDB keys will be preserved
             under `_key` in your PyG graph.
         :type preserve_adb_keys: bool
-        :param query_options: Keyword arguments to specify AQL query options when
+        :param adb_export_kwargs: Keyword arguments to specify AQL query options when
             fetching documents from the ArangoDB instance. Full parameter list:
             https://docs.python-arango.com/en/main/specs.html#arango.aql.AQL.execute
-        :type query_options: Any
+        :type adb_export_kwargs: Any
         :return: A PyG Data or HeteroData object
         :rtype: torch_geometric.data.Data | torch_geometric.data.HeteroData
         :raise adbpyg_adapter.exceptions.ADBMetagraphError: If invalid metagraph.
@@ -390,10 +390,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             "edgeCollections": {col: dict() for col in e_cols},
         }
 
-        return self.arangodb_to_pyg(name, metagraph, preserve_adb_keys, **query_options)
+        return self.arangodb_to_pyg(name, metagraph, preserve_adb_keys, **adb_export_kwargs)
 
     def arangodb_graph_to_pyg(
-        self, name: str, preserve_adb_keys: bool = False, **query_options: Any
+        self, name: str, preserve_adb_keys: bool = False, **adb_export_kwargs: Any
     ) -> Union[Data, HeteroData]:
         """Create a PyG graph from an ArangoDB graph. Due to risk of
             ambiguity, this method DOES NOT transfer ArangoDB attributes to PyG.
@@ -415,10 +415,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             ArangoDB graph is Heterogeneous, the ArangoDB keys will be preserved
             under `_key` in your PyG graph.
         :type preserve_adb_keys: bool
-        :param query_options: Keyword arguments to specify AQL query options when
+        :param adb_export_kwargs: Keyword arguments to specify AQL query options when
             fetching documents from the ArangoDB instance. Full parameter list:
             https://docs.python-arango.com/en/main/specs.html#arango.aql.AQL.execute
-        :type query_options: Any
+        :type adb_export_kwargs: Any
         :return: A PyG Data or HeteroData object
         :rtype: torch_geometric.data.Data | torch_geometric.data.HeteroData
         :raise adbpyg_adapter.exceptions.ADBMetagraphError: If invalid metagraph.
@@ -429,7 +429,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         e_cols: Set[str] = {c["edge_collection"] for c in edge_definitions}
 
         return self.arangodb_collections_to_pyg(
-            name, v_cols, e_cols, preserve_adb_keys, **query_options
+            name, v_cols, e_cols, preserve_adb_keys, **adb_export_kwargs
         )
 
     ###########################
