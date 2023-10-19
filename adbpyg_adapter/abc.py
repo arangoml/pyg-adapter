@@ -16,17 +16,17 @@ class Abstract_ADBPyG_Adapter(ABC):
         raise NotImplementedError  # pragma: no cover
 
     def arangodb_to_pyg(
-        self, name: str, metagraph: ADBMetagraph, **query_options: Any
+        self, name: str, metagraph: ADBMetagraph, **adb_export_kwargs: Any
     ) -> Union[Data, HeteroData]:
         raise NotImplementedError  # pragma: no cover
 
     def arangodb_collections_to_pyg(
-        self, name: str, v_cols: Set[str], e_cols: Set[str], **query_options: Any
+        self, name: str, v_cols: Set[str], e_cols: Set[str], **adb_export_kwargs: Any
     ) -> Union[Data, HeteroData]:
         raise NotImplementedError  # pragma: no cover
 
     def arangodb_graph_to_pyg(
-        self, name: str, **query_options: Any
+        self, name: str, **adb_export_kwargs: Any
     ) -> Union[Data, HeteroData]:
         raise NotImplementedError  # pragma: no cover
 
