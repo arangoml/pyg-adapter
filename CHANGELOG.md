@@ -1,3 +1,74 @@
+## 1.1.2 (2023-10-25)
+
+### Other
+
+* Code Cleanup (#23) [Anthony Mahanna]
+
+  * code cleanup
+
+  copy of https://github.com/arangoml/dgl-adapter/pull/30/commits/6b36a5056939efa56a857f709857c3b364c06ccb
+
+  * attempt fix: `pip install torch`
+
+  * attempt fix: remove `-e`
+
+  * attempt fix: remove cache
+
+  * fix: bad comment
+
+  * attempt fix: `pip install torch-sparse`
+
+  * attempt fix: torch installations
+
+  * attempt fix: upgrade pip
+
+  hitting a wall...
+
+  * cleanup: workflows
+
+  * cleanup: `adapter.py`
+
+  * cleanup: workflows
+
+  * fix: install publishing dependencies
+
+  * extracting more logic into separate functions
+
+  * fix: mypy
+
+  * rename kwargs
+
+  * bump `adbpyg-adapter` to `1.1.2` in notebooks
+
+  * fix param order
+
+  * bump
+
+  * Delete build_self_hosted.yml
+
+  * cleanup workflows
+
+  * Update build.yml
+
+  * Update build.yml
+
+  * Update build.yml
+
+  * parameter renaming, new `use_async` param
+
+  * fix abc
+
+  * fix mypy
+
+  * add `strict` param to other adb -> pyg methods
+
+  * Update setup.py
+
+* Changelog: release 1.1.1 (#22) [github-actions[bot]]
+
+  !gitchangelog
+
+
 ## 1.1.1 (2023-08-08)
 
 ### New
