@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from abc import ABC
-from typing import Any, List, Set, Union
+from typing import Any, Set, Union
 
 from arango.graph import Graph as ArangoDBGraph
 from torch_geometric.data import Data, HeteroData
@@ -16,17 +16,17 @@ class Abstract_ADBPyG_Adapter(ABC):
         raise NotImplementedError  # pragma: no cover
 
     def arangodb_to_pyg(
-        self, name: str, metagraph: ADBMetagraph, **query_options: Any
+        self, name: str, metagraph: ADBMetagraph, **adb_export_kwargs: Any
     ) -> Union[Data, HeteroData]:
         raise NotImplementedError  # pragma: no cover
 
     def arangodb_collections_to_pyg(
-        self, name: str, v_cols: Set[str], e_cols: Set[str], **query_options: Any
+        self, name: str, v_cols: Set[str], e_cols: Set[str], **adb_export_kwargs: Any
     ) -> Union[Data, HeteroData]:
         raise NotImplementedError  # pragma: no cover
 
     def arangodb_graph_to_pyg(
-        self, name: str, **query_options: Any
+        self, name: str, **adb_export_kwargs: Any
     ) -> Union[Data, HeteroData]:
         raise NotImplementedError  # pragma: no cover
 
@@ -37,28 +37,8 @@ class Abstract_ADBPyG_Adapter(ABC):
         metagraph: PyGMetagraph = {},
         explicit_metagraph: bool = True,
         overwrite_graph: bool = False,
-        **import_options: Any,
+        **adb_import_kwargs: Any,
     ) -> ArangoDBGraph:
-        raise NotImplementedError  # pragma: no cover
-
-    def etypes_to_edefinitions(self, edge_types: List[EdgeType]) -> List[Json]:
-        raise NotImplementedError  # pragma: no cover
-
-    def ntypes_to_ocollections(
-        self, node_types: List[str], edge_types: List[EdgeType]
-    ) -> List[str]:
-        raise NotImplementedError  # pragma: no cover
-
-    def __fetch_adb_docs(self) -> None:
-        raise NotImplementedError  # pragma: no cover
-
-    def __insert_adb_docs(self) -> None:
-        raise NotImplementedError  # pragma: no cover
-
-    def __build_tensor_from_dataframe(self) -> None:
-        raise NotImplementedError  # pragma: no cover
-
-    def __build_dataframe_from_tensor(self) -> None:
         raise NotImplementedError  # pragma: no cover
 
 
