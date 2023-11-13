@@ -437,8 +437,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :raise adbpyg_adapter.exceptions.ADBMetagraphError: If invalid metagraph.
         """
         graph = self.__db.graph(name)
-        v_cols: Set[str] = graph.vertex_collections()  # type: ignore
-        edge_definitions: List[Json] = graph.edge_definitions()  # type: ignore
+        v_cols: Set[str] = graph.vertex_collections()
+        edge_definitions: List[Json] = graph.edge_definitions()
         e_cols: Set[str] = {c["edge_collection"] for c in edge_definitions}
 
         return self.arangodb_collections_to_pyg(
@@ -731,12 +731,12 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 )
             """
 
-        col_size: int = self.__db.collection(col).count()  # type: ignore
+        col_size: int = self.__db.collection(col).count()
 
         with get_export_spinner_progress(f"ADB Export: '{col}' ({col_size})") as p:
             p.add_task(col)
 
-            cursor: Cursor = self.__db.aql.execute(  # type: ignore
+            cursor: Cursor = self.__db.aql.execute(
                 f"FOR doc IN @@col RETURN {get_aql_return_value(meta)}",
                 bind_vars={"@col": col},
                 **{**adb_export_kwargs, **{"stream": True}},
@@ -785,7 +785,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         with Live(Group(progress)):
             i = 0
             while not cursor.empty():
-                cursor_batch = len(cursor.batch())  # type: ignore
+                cursor_batch = len(cursor.batch())
                 df = DataFrame([cursor.pop() for _ in range(cursor_batch)])
 
                 i = process_adb_df(i, df, col, adb_map, meta, preserve_key, **kwargs)
@@ -1180,7 +1180,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         edge_definitions = self.__etypes_to_edefinitions(edge_types)
         orphan_collections = self.__ntypes_to_ocollections(node_types, edge_types)
 
-        return self.__db.create_graph(  # type: ignore[return-value]
+        return self.__db.create_graph(
             name,
             edge_definitions,
             orphan_collections,
@@ -1239,8 +1239,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         # 3. Apply the ArangoDB Node Controller (if provided)
         if is_custom_controller:
-            f = lambda n: self.__cntrl._prepare_pyg_node(n, n_type)
-            df = df.apply(f, axis=1)
+            df = df.apply(lambda n: self.__cntrl._prepare_pyg_node(n, n_type), axis=1)
 
         return df
 
@@ -1313,8 +1312,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         # 5. Apply the ArangoDB Edge Controller (if provided)
         if is_custom_controller:
-            f = lambda e: self.__cntrl._prepare_pyg_edge(e, e_type)
-            df = df.apply(f, axis=1)
+            df = df.apply(lambda e: self.__cntrl._prepare_pyg_edge(e, e_type), axis=1)
 
         return df
 

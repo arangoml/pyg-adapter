@@ -50,10 +50,10 @@ def test_validate_constructor() -> None:
         pass
 
     with pytest.raises(TypeError):
-        ADBPyG_Adapter(bad_db)  # type: ignore
+        ADBPyG_Adapter(bad_db)
 
     with pytest.raises(TypeError):
-        ADBPyG_Adapter(db, Bad_ADBPyG_Controller())  # type: ignore
+        ADBPyG_Adapter(db, Bad_ADBPyG_Controller())  # type:ignore[arg-type]
 
 
 @pytest.mark.parametrize(
@@ -395,11 +395,11 @@ def test_pyg_to_arangodb_with_controller() -> None:
 
     ADBPyG_Adapter(db, Custom_ADBPyG_Controller()).pyg_to_arangodb(name, data)
 
-    for doc in db.collection(f"{name}_N"):  # type: ignore
+    for doc in db.collection(f"{name}_N"):
         assert "foo" in doc
         assert doc["foo"] == "bar"
 
-    for edge in db.collection(f"{name}_E"):  # type: ignore
+    for edge in db.collection(f"{name}_E"):
         assert "bar" in edge
         assert edge["bar"] == "foo"
 
@@ -649,8 +649,8 @@ def test_adb_graph_to_pyg(
     pyg_g_new = adapter.arangodb_graph_to_pyg(name)
 
     graph = db.graph(name)
-    v_cols: Set[str] = graph.vertex_collections()  # type: ignore
-    edge_definitions: List[Json] = graph.edge_definitions()  # type: ignore
+    v_cols: Set[str] = graph.vertex_collections()
+    edge_definitions: List[Json] = graph.edge_definitions()
     e_cols: Set[str] = {c["edge_collection"] for c in edge_definitions}
 
     # Manually set the number of nodes (since nodes are feature-less)
@@ -683,8 +683,8 @@ def test_adb_graph_to_pyg_to_arangodb_with_missing_document_and_strict(
     ADBPyG_Adapter(db).pyg_to_arangodb(name, data)
 
     graph = db.graph(name)
-    v_cols: Set[str] = graph.vertex_collections()  # type: ignore
-    edge_definitions: List[Json] = graph.edge_definitions()  # type: ignore
+    v_cols: Set[str] = graph.vertex_collections()
+    edge_definitions: List[Json] = graph.edge_definitions()
     e_cols: Set[str] = {c["edge_collection"] for c in edge_definitions}
 
     for v_col in v_cols:
@@ -713,8 +713,8 @@ def test_adb_graph_to_pyg_to_arangodb_with_missing_document_and_permissive(
     ADBPyG_Adapter(db).pyg_to_arangodb(name, data)
 
     graph = db.graph(name)
-    v_cols: Set[str] = graph.vertex_collections()  # type: ignore
-    edge_definitions: List[Json] = graph.edge_definitions()  # type: ignore
+    v_cols: Set[str] = graph.vertex_collections()
+    edge_definitions: List[Json] = graph.edge_definitions()
     e_cols: Set[str] = {c["edge_collection"] for c in edge_definitions}
 
     for v_col in v_cols:
@@ -728,7 +728,7 @@ def test_adb_graph_to_pyg_to_arangodb_with_missing_document_and_permissive(
 
     data = adapter.arangodb_to_pyg(name, metagraph=metagraph, strict=False)
 
-    collection_count: int = db.collection(list(e_cols)[0]).count()  # type: ignore
+    collection_count: int = db.collection(list(e_cols)[0]).count()
     assert len(data.edge_index[0]) < collection_count
 
     db.delete_graph(name, drop_collections=True)
@@ -799,8 +799,8 @@ def test_full_cycle_homogeneous_with_preserve_adb_keys() -> None:
     pyg_g = adbpyg_adapter.arangodb_graph_to_pyg(name, preserve_adb_keys=True)
 
     graph = db.graph(name)
-    v_cols: Set[str] = graph.vertex_collections()  # type: ignore
-    edge_definitions: List[Json] = graph.edge_definitions()  # type: ignore
+    v_cols: Set[str] = graph.vertex_collections()
+    edge_definitions: List[Json] = graph.edge_definitions()
     e_cols: Set[str] = {c["edge_collection"] for c in edge_definitions}
 
     metagraph: ADBMetagraph = {
