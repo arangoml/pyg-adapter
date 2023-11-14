@@ -32,7 +32,7 @@ jobs:
 
       - name: Install packages
         run: |
-          pip install torch
+          pip install torch==2.1.0
           pip install torch-scatter torch-sparse -f https://data.pyg.org/whl/torch-$(python -c 'import torch; print(torch.__version__.split("+")[0])')+cpu.html
           pip install -e .[dev]
 
