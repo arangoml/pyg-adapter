@@ -1,5 +1,5 @@
 from functools import wraps
-from typing import Any, Callable, Optional, TypeVar, cast
+from typing import Any, Callable, List, Optional, TypeVar, cast
 
 try:
     from opentelemetry import trace
@@ -49,7 +49,7 @@ def with_tracing(method: T) -> T:
 def create_tracer(
     name: str,
     enable_console_tracing: bool = False,
-    span_exporters: list["SpanExporter"] = [],
+    span_exporters: List["SpanExporter"] = [],
 ) -> "Tracer":
     """
     Create a tracer instance.
@@ -61,7 +61,7 @@ def create_tracer(
     :param span_exporters: A list of SpanExporter instances to use for tracing.
         For example, to export to a local Jaeger instance running via docker, you
         could use `[OTLPSpanExporter(endpoint="http://localhost:4317", insecure=True)]`.
-    :type oltp_span_exporters: list[OTLPSpanExporter]
+    :type span_exporters: List[opentelemetry.sdk.trace.export.SpanExporter]
     :return: A configured tracer instance.
     :rtype: opentelemetry.trace.Tracer
     """
