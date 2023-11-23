@@ -13,7 +13,7 @@ try:
     from opentelemetry.trace import Tracer
 
     TRACING_ENABLED = True
-except ImportError:
+except ImportError:  # pragma: no cover
     TRACING_ENABLED = False
 
 
@@ -35,13 +35,11 @@ T = TypeVar("T", bound=Callable[..., Any])
 def with_tracing(method: T) -> T:
     @wraps(method)
     def decorator(*args: Any, **kwargs: Any) -> Any:
-        tracer = TracingManager.get_tracer()
+        if tracer := TracingManager.get_tracer():
+            with tracer.start_as_current_span(method.__name__):
+                return method(*args, **kwargs)
 
-        if tracer is None:
-            return method(*args, **kwargs)
-
-        with tracer.start_as_current_span(method.__name__):
-            return method(*args, **kwargs)
+        return method(*args, **kwargs)
 
     return cast(T, decorator)
 
@@ -65,18 +63,18 @@ def create_tracer(
     :return: A configured tracer instance.
     :rtype: opentelemetry.trace.Tracer
     """
-    if not TRACING_ENABLED:
+    if not TRACING_ENABLED:  # pragma: no cover
         m = "OpenTelemetry is not installed. Cannot create tracer. Use `pip install adbpyg-adapter[tracing]`"  # noqa: E501
         raise RuntimeError(m)
 
     resource = Resource(attributes={SERVICE_NAME: name})
     provider = TracerProvider(resource=resource)
 
-    if enable_console_tracing:
+    if enable_console_tracing:  # pragma: no cover
         console_processor = BatchSpanProcessor(ConsoleSpanExporter())
         provider.add_span_processor(console_processor)
 
-    for span_exporter in span_exporters:
+    for span_exporter in span_exporters:  # pragma: no cover
         provider.add_span_processor(BatchSpanProcessor(span_exporter))
 
     trace.set_tracer_provider(provider)

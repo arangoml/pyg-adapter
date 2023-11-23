@@ -394,9 +394,7 @@ def test_pyg_to_arangodb_with_controller() -> None:
     data = get_karate_graph()
     db.delete_graph(name, drop_collections=True, ignore_missing=True)
 
-    ADBPyG_Adapter(db, Custom_ADBPyG_Controller(), tracer=tracer).pyg_to_arangodb(
-        name, data
-    )
+    ADBPyG_Adapter(db, Custom_ADBPyG_Controller()).pyg_to_arangodb(name, data)
 
     for doc in db.collection(f"{name}_N"):
         assert "foo" in doc

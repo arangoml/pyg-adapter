@@ -21,7 +21,7 @@ from torch_geometric.typing import EdgeType
 from .abc import Abstract_ADBPyG_Adapter
 from .controller import ADBPyG_Controller
 from .exceptions import ADBMetagraphError, InvalidADBEdgesError, PyGMetagraphError
-from .tracing import TRACING_ENABLED, TracingManager, create_tracer, with_tracing
+from .tracing import TRACING_ENABLED, TracingManager, with_tracing
 from .typings import (
     ADBMap,
     ADBMetagraph,
@@ -113,10 +113,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :raise ImportError: If OpenTelemetry is not installed.
         """
         if TRACING_ENABLED:
-            self.__tracer = tracer or create_tracer("adbpyg-adapter")
-            TracingManager.set_tracer(self.__tracer)
-        else:
-            self.__tracer = None
+            TracingManager.set_tracer(tracer)
 
     def __set_tracer_attributes(self, **attributes: Any) -> None:
         """Set the OpenTelemetry tracer attributes for the adapter instance.
