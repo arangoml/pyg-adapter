@@ -293,11 +293,12 @@ Prerequisite: `arangorestore`
 6. (create an ArangoDB instance with method of choice)
 7. `pytest --url <> --dbName <> --username <> --password <>`
 
-**Note**: A `pytest` parameter can be omitted if the endpoint is using its default value:
+**Note**: `pytest` parameters:
 ```python
 def pytest_addoption(parser):
     parser.addoption("--url", action="store", default="http://localhost:8529")
     parser.addoption("--dbName", action="store", default="_system")
     parser.addoption("--username", action="store", default="root")
     parser.addoption("--password", action="store", default="")
+    parser.addoption("--otlp_endpoint", action="append", default=[]) # OpenTelemetry Protocol Exporter endpoint
 ```
