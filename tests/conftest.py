@@ -6,6 +6,8 @@ from typing import Any, Callable, Dict
 
 from arango import ArangoClient
 from arango.database import StandardDatabase
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.trace import Tracer
 from pandas import DataFrame
 from torch import Tensor, tensor
 from torch_geometric.data import Data, HeteroData
@@ -13,10 +15,12 @@ from torch_geometric.datasets import Amazon, FakeDataset, FakeHeteroDataset, Kar
 from torch_geometric.typing import EdgeType
 
 from adbpyg_adapter import ADBPyG_Adapter, ADBPyG_Controller
+from adbpyg_adapter.tracing import create_tracer
 from adbpyg_adapter.typings import Json
 
 con: Json
 db: StandardDatabase
+tracer: Tracer
 adbpyg_adapter: ADBPyG_Adapter
 PROJECT_DIR = Path(__file__).parent.parent
 
@@ -49,8 +53,17 @@ def pytest_configure(config: Any) -> None:
         con["dbName"], con["username"], con["password"], verify=True
     )
 
+    global tracer
+    tracer = create_tracer(
+        "adbpyg-adapter-test",
+        enable_console_tracing=False,
+        span_exporters=[
+            OTLPSpanExporter(endpoint="http://localhost:4317", insecure=True)
+        ],
+    )
+
     global adbpyg_adapter
-    adbpyg_adapter = ADBPyG_Adapter(db, logging_lvl=logging.INFO)
+    adbpyg_adapter = ADBPyG_Adapter(db, logging_lvl=logging.INFO, tracer=tracer)
 
 
 def pytest_exception_interact(node: Any, call: Any, report: Any) -> None:

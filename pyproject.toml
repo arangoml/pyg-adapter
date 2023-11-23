@@ -56,6 +56,11 @@ dev = [
     "types-requests>=2.27.11",
     "networkx>=2.5.1",
 ]
+tracing = [
+    "opentelemetry-api==1.21.0",
+    "opentelemetry-sdk==1.21.0",
+    "opentelemetry-exporter-otlp-proto-grpc==1.21.0"
+]
 
 [project.urls]
 "Homepage" = "https://github.com/arangoml/pyg-adapter"
