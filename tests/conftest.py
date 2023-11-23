@@ -30,6 +30,7 @@ def pytest_addoption(parser: Any) -> None:
     parser.addoption("--dbName", action="store", default="_system")
     parser.addoption("--username", action="store", default="root")
     parser.addoption("--password", action="store", default="")
+    parser.addoption("--otlp-endpoint", action="store", default="http://localhost:4317")
 
 
 def pytest_configure(config: Any) -> None:
@@ -58,7 +59,7 @@ def pytest_configure(config: Any) -> None:
         "adbpyg-adapter-test",
         enable_console_tracing=False,
         span_exporters=[
-            OTLPSpanExporter(endpoint="http://localhost:4317", insecure=True)
+            OTLPSpanExporter(endpoint=config.getoption("otlp-endpoint"), insecure=True)
         ],
     )
 
