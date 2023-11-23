@@ -289,7 +289,7 @@ Prerequisite: `arangorestore`
 2. `cd pyg-adapter`
 3. (create virtual environment of choice)
 4. `pip install torch`
-5. `pip install -e .[dev, tracing]`
+5. `pip install -e '.[dev, tracing]'`
 6. (create an ArangoDB instance with method of choice)
 7. `pytest --url <> --dbName <> --username <> --password <>`
 
