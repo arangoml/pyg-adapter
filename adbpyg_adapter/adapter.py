@@ -115,17 +115,6 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         if TRACING_ENABLED:
             TracingManager.set_tracer(tracer)
 
-    def __set_tracer_attributes(self, **attributes: Any) -> None:
-        """Set the OpenTelemetry tracer attributes for the adapter instance.
-
-        :param attributes: The OpenTelemetry tracer attributes.
-        :type attributes: Any
-        """
-        if TRACING_ENABLED:
-            current_span = trace.get_current_span()
-            for k, v in attributes.items():
-                current_span.set_attribute(k, v)
-
     ###########################
     # Public: ArangoDB -> PyG #
     ###########################
@@ -298,7 +287,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         build a PyG-ready Tensor from a DataFrame equivalent to the
         associated ArangoDB collection.
         """
-        self.__set_tracer_attributes(name=name)
+        TracingManager.set_attributes(name=name)
         logger.debug(f"--arangodb_to_pyg('{name}')--")
 
         validate_adb_metagraph(metagraph)
@@ -573,7 +562,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         4) Dissasembles the 2-feature Tensor into two ArangoDB attributes,
             where each attribute holds one feature value.
         """
-        self.__set_tracer_attributes(name=name)
+        TracingManager.set_attributes(name=name)
         logger.debug(f"--pyg_to_arangodb('{name}')--")
 
         validate_pyg_metagraph(metagraph)
@@ -745,7 +734,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             node_data=node_data,
         )
 
-        self.__set_tracer_attributes(v_col=v_col, v_col_size=v_col_size)
+        TracingManager.set_attributes(v_col=v_col, v_col_size=v_col_size)
 
     @with_tracing
     def __process_adb_e_col(
@@ -804,7 +793,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             is_homogeneous=is_homogeneous,
         )
 
-        self.__set_tracer_attributes(e_col=e_col, e_col_size=e_col_size)
+        TracingManager.set_attributes(e_col=e_col, e_col_size=e_col_size)
 
     @with_tracing
     def __fetch_adb_docs(
@@ -1355,7 +1344,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :return: The ArangoDB DataFrame representing the PyG Node batch.
         :rtype: pandas.DataFrame
         """
-        self.__set_tracer_attributes(start_index=start_index, end_index=end_index)
+        TracingManager.set_attributes(start_index=start_index, end_index=end_index)
 
         # 1. Set the ArangoDB Node Data
         df = self.__set_adb_data(
@@ -1415,7 +1404,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :return: The ArangoDB DataFrame representing the PyG Edge batch.
         :rtype: pandas.DataFrame
         """
-        self.__set_tracer_attributes(start_index=start_index, end_index=end_index)
+        TracingManager.set_attributes(start_index=start_index, end_index=end_index)
 
         src_n_type, _, dst_n_type = e_type
 
@@ -1495,7 +1484,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             when inserting documents into the ArangoDB instance.
         :type adb_import_kwargs: Dict[str, Any]
         """
-        self.__set_tracer_attributes(n_type=n_type, n_type_size=node_data_total_size)
+        TracingManager.set_attributes(n_type=n_type, n_type_size=node_data_total_size)
 
         self.__process_batches(
             n_type,
@@ -1547,7 +1536,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             when inserting documents into the ArangoDB instance.
         :type adb_import_kwargs: Dict[str, Any]
         """
-        self.__set_tracer_attributes(e_type=e_type, e_type_size=edge_data_total_size)
+        TracingManager.set_attributes(e_type=e_type, e_type_size=edge_data_total_size)
 
         self.__process_batches(
             e_type[1],
@@ -1796,7 +1785,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             https://docs.python-arango.com/en/main/specs.html#arango.collection.Collection.import_bulk
         :param adb_import_kwargs: Any
         """
-        self.__set_tracer_attributes(col=col, size=len(df))
+        TracingManager.set_attributes(col=col, size=len(df))
 
         action = f"ADB Import: '{col}' ({len(df)})"
         spinner_progress_task = spinner_progress.add_task("", action=action)

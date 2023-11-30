@@ -28,6 +28,13 @@ class TracingManager:
     def set_tracer(cls, tracer: "Tracer") -> None:
         cls.__tracer = tracer
 
+    @classmethod
+    def set_attributes(self, **attributes: Any) -> None:
+        if TRACING_ENABLED and self.__tracer is not None:
+            current_span = trace.get_current_span()
+            for k, v in attributes.items():
+                current_span.set_attribute(k, v)
+
 
 T = TypeVar("T", bound=Callable[..., Any])
 
