@@ -41,7 +41,7 @@ from .utils import (
 )
 
 if TRACING_ENABLED:
-    from opentelemetry import trace
+    from opentelemetry.trace import Tracer
 
 
 class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
@@ -69,7 +69,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         db: StandardDatabase,
         controller: ADBPyG_Controller = ADBPyG_Controller(),
         logging_lvl: Union[str, int] = logging.INFO,
-        tracer: Optional["trace.Tracer"] = None,
+        tracer: Optional["Tracer"] = None,
     ):
         self.set_logging(logging_lvl)
         self.set_tracer(tracer)
@@ -104,11 +104,13 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         """
         logger.setLevel(level)
 
-    def set_tracer(self, tracer: Optional["trace.Tracer"]) -> None:
+    def set_tracer(self, tracer: Optional["Tracer"]) -> None:
         """Set the OpenTelemetry tracer for the adapter instance. Requires
         the `tracing` extra to be installed (i.e `pip install adbpyg-adapter[tracing]`).
 
-        :param tracer: The OpenTelemetry tracer instance.
+        :param tracer: The OpenTelemetry tracer instance. See
+            `adbpyg_adapter.tracing.create_tracer` for details on how to
+            create a tracer instance.
         :type tracer: opentelemetry.trace.Tracer
         :raise ImportError: If OpenTelemetry is not installed.
         """
