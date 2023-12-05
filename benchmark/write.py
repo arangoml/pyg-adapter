@@ -107,7 +107,7 @@ def parse_args():
     parser.add_argument("--url", type=str, default="http://localhost:8529")
     parser.add_argument("--dbName", type=str, default="_system")
     parser.add_argument("--username", type=str, default="root")
-    parser.add_argument("--password", type=str, default="test")
+    parser.add_argument("--password", type=str, default="")
     parser.add_argument("--otlp_endpoint", type=str, default="localhost:4317")
     parser.add_argument(
         "--output_dir", type=str, default="branch", choices=["branch", "head"]
