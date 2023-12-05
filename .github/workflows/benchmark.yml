@@ -97,13 +97,7 @@ jobs:
         run: docker run -d --name arangodb -p 8529:8529 -e ARANGO_ROOT_PASSWORD= arangodb/arangodb
   
       - name: Start Jaeger Instance
-        run: docker run -d --name jaeger --rm \
-          -e COLLECTOR_ZIPKIN_HOST_PORT=:9411 \
-          -p 16686:16686 \
-          -p 4317:4317 \
-          -p 4318:4318 \
-          -p 9411:9411 \
-          jaegertracing/all-in-one:latest
+        run: docker run -d --name jaeger --rm -e COLLECTOR_ZIPKIN_HOST_PORT=:9411 -p 16686:16686 -p 4317:4317 -p 4318:4318 -p 9411:9411 jaegertracing/all-in-one:latest
 
       - name: Install packages
         run: |
