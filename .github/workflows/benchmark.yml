@@ -106,7 +106,7 @@ jobs:
           pip install torch-scatter torch-sparse -f https://data.pyg.org/whl/torch-$(python -c 'import torch; print(torch.__version__.split("+")[0])')+cpu.html
           pip install -e '.[dev, tracing]'
 
-      - name: Write traces for branch
+      - name: Write PR traces
         run: python benchmark/write.py --output_dir branch
 
       - name: Compare PR traces against Master traces
