@@ -1189,10 +1189,6 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         node_types: List[str]
         edge_types: List[EdgeType]
 
-        import time
-
-        time.sleep(3)
-
         if is_explicit_metagraph:
             node_types = metagraph.get("nodeTypes", {}).keys()  # type: ignore
             edge_types = metagraph.get("edgeTypes", {}).keys()  # type: ignore
