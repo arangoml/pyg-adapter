@@ -2,12 +2,14 @@ import logging
 import os
 import subprocess
 from pathlib import Path
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Optional
+
+import torch
+import random
+import numpy as np
 
 from arango import ArangoClient
 from arango.database import StandardDatabase
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.trace import Tracer
 from pandas import DataFrame
 from torch import Tensor, tensor
 from torch_geometric.data import Data, HeteroData
@@ -18,12 +20,24 @@ from adbpyg_adapter import ADBPyG_Adapter, ADBPyG_Controller
 from adbpyg_adapter.tracing import create_tracer
 from adbpyg_adapter.typings import Json
 
+try:
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+    from opentelemetry.trace import Tracer
+
+    TRACING_ENABLED = True
+except ImportError:
+    TRACING_ENABLED = False
+
+seed = 0
+torch.manual_seed(seed)
+random.seed(seed)
+np.random.seed(seed)
+
 con: Json
 db: StandardDatabase
-tracer: Tracer
+tracer: Optional["Tracer"]
 adbpyg_adapter: ADBPyG_Adapter
 PROJECT_DIR = Path(__file__).parent.parent
-
 
 def pytest_addoption(parser: Any) -> None:
     parser.addoption("--url", action="store", default="http://localhost:8529")
@@ -43,10 +57,11 @@ def pytest_configure(config: Any) -> None:
     }
 
     print("----------------------------------------")
-    print("URL: " + con["url"])
-    print("Username: " + con["username"])
-    print("Password: " + con["password"])
-    print("Database: " + con["dbName"])
+    print(f"URL: {con['url']}")
+    print(f"Username: {con['username']}")
+    print(f"Password: {con['password']}")
+    print(f"Database: {con['dbName']}")
+    print(f"TRACING_ENABLED: {TRACING_ENABLED}")
     print("----------------------------------------")
 
     global db
@@ -55,14 +70,16 @@ def pytest_configure(config: Any) -> None:
     )
 
     global tracer
-    tracer = create_tracer(
-        "adbpyg-adapter-test",
-        enable_console_tracing=False,
-        span_exporters=[
-            OTLPSpanExporter(endpoint=endpoint, insecure=True)
-            for endpoint in config.getoption("otlp_endpoint")
-        ],
-    )
+    tracer = None
+    if TRACING_ENABLED:
+        tracer = create_tracer(
+            "adbpyg-adapter-test",
+            enable_console_tracing=False,
+            span_exporters=[
+                OTLPSpanExporter(endpoint=endpoint)
+                for endpoint in config.getoption("otlp_endpoint")
+            ],
+        )
 
     global adbpyg_adapter
     adbpyg_adapter = ADBPyG_Adapter(db, logging_lvl=logging.INFO, tracer=tracer)
