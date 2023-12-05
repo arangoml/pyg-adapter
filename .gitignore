@@ -119,3 +119,7 @@ adbpyg_adapter/version.py
 
 # PyG Data
 tests/data/pyg
+
+# "Current" Benchmark Results
+benchmark/traces/branch/*.json
+benchmark/diff/*.json
