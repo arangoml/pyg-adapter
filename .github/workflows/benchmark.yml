@@ -9,11 +9,6 @@ on:
         - 'src/**'
         - "benchmark/*.py"
   pull_request:
-    branches:
-      - master
-    paths:
-      - 'src/**'
-      - "benchmark/*.py"
 
 jobs:
   # write_traces:
