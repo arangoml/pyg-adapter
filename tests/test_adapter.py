@@ -821,6 +821,7 @@ def test_full_cycle_homogeneous_with_preserve_adb_keys() -> None:
 
     db.delete_graph(name, drop_collections=True, ignore_missing=True)
 
+
 def test_full_cycle_imdb_with_preserve_adb_keys() -> None:
     name = "imdb"
     db.delete_graph(name, drop_collections=True, ignore_missing=True)
@@ -892,6 +893,7 @@ def test_full_cycle_imdb_with_preserve_adb_keys() -> None:
     assert db.collection("Users").get("new-user-944") is not None
 
     db.delete_graph(name, drop_collections=True)
+
 
 def assert_pyg_to_adb(
     name: str,

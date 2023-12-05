@@ -1,13 +1,12 @@
 import logging
 import os
+import random
 import subprocess
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
-import torch
-import random
 import numpy as np
-
+import torch
 from arango import ArangoClient
 from arango.database import StandardDatabase
 from pandas import DataFrame
@@ -38,6 +37,7 @@ db: StandardDatabase
 tracer: Optional["Tracer"]
 adbpyg_adapter: ADBPyG_Adapter
 PROJECT_DIR = Path(__file__).parent.parent
+
 
 def pytest_addoption(parser: Any) -> None:
     parser.addoption("--url", action="store", default="http://localhost:8529")
