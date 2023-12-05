@@ -16,7 +16,7 @@ on:
       - "benchmark/*.py"
 
 jobs:
-  # write_benchmark:
+  # write_traces:
   #   if: github.event_name == 'push'
   #   runs-on: ubuntu-latest
   #   steps:
@@ -80,7 +80,7 @@ jobs:
   #     - name: Alert developer of open PR
   #       run: echo "Benchmark $PR_URL is ready to be merged by developer."
 
-  compare_benchmarks:
+  compare_traces:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
@@ -93,17 +93,19 @@ jobs:
           cache: 'pip'
           cache-dependency-path: setup.py
 
-      - name: Set up ArangoDB Instance via Docker
+      - name: Start ArangoDB Instance
         run: docker run -d --name arangodb -p 8529:8529 -e ARANGO_ROOT_PASSWORD= arangodb/arangodb
   
       - name: Start Jaeger Instance
         run: docker run -d --name jaeger --rm -e COLLECTOR_ZIPKIN_HOST_PORT=:9411 -p 16686:16686 -p 4317:4317 -p 4318:4318 -p 9411:9411 jaegertracing/all-in-one:latest
 
+      # TODO: revisit why [tracing] is not working
       - name: Install packages
         run: |
           pip install torch==2.1.0
           pip install torch-scatter torch-sparse -f https://data.pyg.org/whl/torch-$(python -c 'import torch; print(torch.__version__.split("+")[0])')+cpu.html
-          pip install -e '.[dev, tracing]'
+          pip install -e '.[dev]'
+          pip install opentelemetry-api==1.21.0 opentelemetry-sdk==1.21.0 opentelemetry-exporter-otlp-proto-grpc==1.21.0
 
       - name: Run Benchmark Write for PR
         run: python benchmark/write.py --output_dir branch
