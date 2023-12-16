@@ -1,5 +1,6 @@
+from contextlib import contextmanager
 from functools import wraps
-from typing import Any, Callable, List, Optional, TypeVar, cast
+from typing import Any, Callable, Iterator, List, Optional, TypeVar, cast
 
 try:
     from opentelemetry import trace
@@ -52,6 +53,15 @@ def with_tracing(method: T) -> T:
         return method(*args, **kwargs)
 
     return cast(T, decorator)
+
+
+@contextmanager
+def start_as_current_span(*args: Any, **kwargs: Any) -> Iterator[None]:
+    if tracer := TracingManager.get_tracer():
+        with tracer.start_as_current_span(*args, **kwargs):
+            yield
+    else:
+        yield
 
 
 def create_tracer(
