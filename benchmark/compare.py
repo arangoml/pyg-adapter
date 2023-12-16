@@ -14,7 +14,7 @@ class DiffSpan:
         self.operation_name = operation_name
         self.main_span_duration = main_duration
         self.branch_span_duration = branch_duration
-        self.improvement = f"{round((1 - main_duration / branch_duration) * 100)}%"
+        self.improvement = f"{round((1 - branch_duration / main_duration) * 100)}%"
         self.children: dict[str, "DiffSpan"] = {}
 
     def add_child(self, span_id: str, child: "DiffSpan"):
