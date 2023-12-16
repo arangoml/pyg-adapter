@@ -42,7 +42,7 @@ T = TypeVar("T", bound=Callable[..., Any])
 
 def with_tracing(method: T) -> T:
     if not TRACING_ENABLED:
-        return method
+        return method  # pragma: no cover
 
     @wraps(method)
     def decorator(*args: Any, **kwargs: Any) -> Any:
