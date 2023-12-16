@@ -1679,16 +1679,21 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             data = pyg_data[meta_key]
             meta_val = valid_meta.get(meta_key, str(meta_key))
 
+            if not isinstance(data, (list, Tensor)):
+                m = f"Skipping {meta_key} due to invalid type ({type(data)})"
+                logger.debug(m)
+                continue
+
             if len(data) != pyg_data_size:
                 m = f"Skipping {meta_key} due to invalid length ({len(data)} != {pyg_data_size})"  # noqa: E501
                 logger.debug(m)
                 continue
 
-            if type(meta_val) is str and type(data) is list:
+            if isinstance(data, list):
                 meta_val = "_key" if meta_val in ["_v_key", "_e_key"] else meta_val
                 df = df.join(DataFrame(data[start_index:end_index], columns=[meta_val]))
 
-            if type(data) is Tensor:
+            elif isinstance(data, Tensor):
                 df = df.join(
                     self.__build_dataframe_from_tensor(
                         data[start_index:end_index],
