@@ -192,7 +192,7 @@ def parse_args():
     parser.add_argument("--jaeger_endpoint", type=str, default="http://localhost:16686")
     parser.add_argument("--otlp_endpoint", type=str, default="http://localhost:4317")
     parser.add_argument(
-        "--output_dir", type=str, choices=["branch", "head"], required=True
+        "--output_dir", type=str, choices=["branch", "master"], required=True
     )
 
     # Parse the arguments
