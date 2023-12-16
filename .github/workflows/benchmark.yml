@@ -11,69 +11,69 @@ on:
         - "benchmark/*.py"
 
 jobs:
-  # write_traces:
-  #   if: github.event_name == 'push'
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #       with:
-  #         fetch-depth: 0
+  generate_master_traces:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-  #     - name: Create new branch
-  #       run: git checkout -b actions/benchmark
+      - name: Create new branch
+        run: git checkout -b actions/benchmark
 
-  #     - name: Set branch upstream
-  #       run: git push -u origin actions/benchmark
-  #       env:
-  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set branch upstream
+        run: git push -u origin actions/benchmark
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  #     - name: Setup Python
-  #       uses: actions/setup-python@v4
-  #       with:
-  #         cache: 'pip'
-  #         cache-dependency-path: setup.py
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          cache: 'pip'
+          cache-dependency-path: setup.py
 
-  #     - name: Set up ArangoDB Instance via Docker
-  #       run: docker run -d --name arangodb -p 8529:8529 -e ARANGO_ROOT_PASSWORD= arangodb/arangodb
+      - name: Start ArangoDB Instance
+        run: docker run -d --name arangodb -p 8529:8529 -e ARANGO_ROOT_PASSWORD= arangodb/arangodb
+    
+      - name: Start Jaeger Instance
+        run: docker run -d --name jaeger --rm -e COLLECTOR_ZIPKIN_HOST_PORT=:9411 -p 16686:16686 -p 4317:4317 -p 4318:4318 -p 9411:9411 jaegertracing/all-in-one:latest
   
-  #     - name: Start Jaeger Instance
-  #       run: docker run -d --name jaeger --rm \
-  #         -e COLLECTOR_ZIPKIN_HOST_PORT=:9411 \
-  #         -p 16686:16686 \
-  #         -p 4317:4317 \
-  #         -p 4318:4318 \
-  #         -p 9411:9411 \
-  #         jaegertracing/all-in-one:latest
+      - name: Install packages
+        run: |
+          pip install torch==2.1.0
+          pip install torch-scatter torch-sparse -f https://data.pyg.org/whl/torch-$(python -c 'import torch; print(torch.__version__.split("+")[0])')+cpu.html
+          pip install -e '.[dev, tracing]'
 
-  #     - name: Install packages
-  #       run: |
-  #         pip install torch==2.1.0
-  #         pip install torch-scatter torch-sparse -f https://data.pyg.org/whl/torch-$(python -c 'import torch; print(torch.__version__.split("+")[0])')+cpu.html
-  #         pip install -e '.[dev, tracing]'
+      - name: Run Python Script
+        run: python benchmark/write.py --output_dir master
 
-  #     - name: Run Python Script
-  #       run: python benchmark/write.py --output_dir head
+      - name: Echo PyG to ArangoDB
+        run: cat benchmark/traces/master/pyg_to_arangodb.json | jq
 
-  #     - name: Make commit for auto-generated benchmark files
-  #       uses: EndBug/add-and-commit@v9
-  #       env:
-  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #       with:
-  #         add: "./benchmark/main/*.json"
-  #         new_branch: actions/benchmark
-  #         message: "generate benchmark files for $GITHUB_SHA"
+      - name: Echo ArangoDB to PyG 
+        run: cat benchmark/traces/master/arangodb_to_pyg.json | jq
 
-  #     - name: Create pull request for the auto generated changelog
-  #       run: |
-  #         echo "PR_URL=$(gh pr create \
-  #           --title "benchmark: $GITHUB_SHA" \
-  #           --body "beep boop, i am a robot ($GITHUB_SHA)" \
-  #           --label documentation)" >> $GITHUB_ENV
-  #       env:
-  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # - name: Make commit for auto-generated benchmark files
+      #   uses: EndBug/add-and-commit@v9
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #   with:
+      #     add: "./benchmark/traces/master/*.json"
+      #     new_branch: actions/benchmark
+      #     message: "generate benchmark files for $GITHUB_SHA"
+
+      # - name: Create pull request for the auto generated benchmark
+      #   run: |
+      #     echo "PR_URL=$(gh pr create \
+      #       --title "benchmark: $GITHUB_SHA" \
+      #       --body "beep boop, i am a robot" \
+      #       --label documentation)" >> $GITHUB_ENV
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   
-  #     - name: Alert developer of open PR
-  #       run: echo "Benchmark $PR_URL is ready to be merged by developer."
+      # - name: Alert developer of open PR
+      #   run: echo "Benchmark $PR_URL is ready to be merged by developer."
 
   compare_traces:
     if: github.event_name == 'pull_request'
