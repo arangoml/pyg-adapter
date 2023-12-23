@@ -123,6 +123,13 @@ jobs:
           echo '```json' >> $GITHUB_ENV
           echo "$ROOT_SPAN_COMPARISON" | jq . >> $GITHUB_ENV
           echo '```' >> $GITHUB_ENV
+          echo '' >> $GITHUB_ENV
+          echo '<details><summary>ArangoDB to PyG Comparison</summary>' >> $GITHUB_ENV
+          echo '' >> $GITHUB_ENV
+          echo '```json' >> $GITHUB_ENV
+          cat $ARANGODB_TO_PYG_DIFF >> $GITHUB_ENV
+          echo '```' >> $GITHUB_ENV
+          echo '</details>' >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
 
 
