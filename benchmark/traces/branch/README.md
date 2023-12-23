@@ -1,3 +1,3 @@
-Empty directory to store the branche's trace files during Github Actions.
+Empty directory to store the branch trace files generated during a Pull Request CI.
 
-See .github/workflows/benchmark.yml and benchmark/write.py for more details.
+See [benchmark.yml](https://github.com/arangoml/pyg-adapter/blob/master/.github/workflows/benchmark.yml) and [write.py](https://github.com/arangoml/pyg-adapter/blob/master/benchmark/write.py) for more details.
