@@ -55,6 +55,7 @@ dev = [
     "types-setuptools>=57.4.9",
     "types-requests>=2.27.11",
     "networkx>=2.5.1",
+    "retry",
 ]
 tracing = [
     "opentelemetry-api==1.21.0",

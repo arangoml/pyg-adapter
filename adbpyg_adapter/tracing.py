@@ -1,5 +1,6 @@
+from contextlib import contextmanager
 from functools import wraps
-from typing import Any, Callable, List, Optional, TypeVar, cast
+from typing import Any, Callable, Iterator, List, Optional, TypeVar, cast
 
 try:
     from opentelemetry import trace
@@ -29,10 +30,20 @@ class TracingManager:
         cls.__tracer = tracer
 
     @classmethod
-    def set_attributes(self, **attributes: Any) -> None:
+    def set_attributes(self, **attributes: Any) -> None:  # pragma: no cover
         if TRACING_ENABLED and self.__tracer is not None:
             current_span = trace.get_current_span()
             for k, v in attributes.items():
+                if isinstance(v, set):
+                    v = str(sorted(v))
+
+                elif isinstance(v, dict):
+                    v = str(dict(sorted(v.items())))
+
+                # 2D+ List
+                elif isinstance(v, list) and any(isinstance(item, list) for item in v):
+                    v = str(v)
+
                 current_span.set_attribute(k, v)
 
 
@@ -41,7 +52,7 @@ T = TypeVar("T", bound=Callable[..., Any])
 
 def with_tracing(method: T) -> T:
     if not TRACING_ENABLED:
-        return method
+        return method  # pragma: no cover
 
     @wraps(method)
     def decorator(*args: Any, **kwargs: Any) -> Any:
@@ -52,6 +63,15 @@ def with_tracing(method: T) -> T:
         return method(*args, **kwargs)
 
     return cast(T, decorator)
+
+
+@contextmanager
+def start_as_current_span(*args: Any, **kwargs: Any) -> Iterator[None]:
+    if tracer := TracingManager.get_tracer():
+        with tracer.start_as_current_span(*args, **kwargs):
+            yield
+    else:
+        yield
 
 
 def create_tracer(

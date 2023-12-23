@@ -122,4 +122,4 @@ tests/data/pyg
 
 # "Current" Benchmark Results
 benchmark/traces/branch/*.json
-benchmark/diff/*.json
+benchmark/traces/diff/*.json
