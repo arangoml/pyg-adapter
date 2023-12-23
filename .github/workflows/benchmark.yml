@@ -130,7 +130,7 @@ jobs:
           echo '' >> $GITHUB_ENV
           echo 'Root Span Comparisons:' >> $GITHUB_ENV
           echo '```json' >> $GITHUB_ENV
-          cat $ROOT_SPAN_COMPARISON >> $GITHUB_ENV
+          cat $ROOT_SPAN_COMPARISON | jq >> $GITHUB_ENV
           echo '```' >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
