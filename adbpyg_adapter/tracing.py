@@ -35,7 +35,7 @@ class TracingManager:
             current_span = trace.get_current_span()
             for k, v in attributes.items():
                 if isinstance(v, set):
-                    v = list(sorted(v))
+                    v = str(sorted(v))
 
                 elif isinstance(v, dict):
                     v = str(dict(sorted(v.items())))

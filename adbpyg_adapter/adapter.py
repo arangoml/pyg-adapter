@@ -1103,7 +1103,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         """
         valid_meta: Dict[str, ADBMetagraphValues]
         valid_meta = meta if type(meta) is dict else {m: m for m in meta}
-        TracingManager.set_attributes(meta=str(valid_meta))
+        TracingManager.set_attributes(meta=valid_meta)
 
         for k, v in valid_meta.items():
             t = self.__build_tensor_from_dataframe(df, k, v)
