@@ -104,7 +104,7 @@ jobs:
       - name: Write PR traces
         run: python benchmark/write.py --output_dir branch
 
-      - name: Compare PR traces against Master traces
+      - name: Compare PR & Master Traces
         run: |
           echo "ROOT_SPAN_COMPARISON<<EOF" >> $GITHUB_ENV
           python benchmark/compare.py >> $GITHUB_ENV
@@ -122,7 +122,7 @@ jobs:
           cat benchmark/diff/arangodb_to_pyg.json | jq . >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-      - name: Prepare PR Message
+      - name: Prepare PR Comment
         run: |
           echo 'MESSAGE<<EOF' >> $GITHUB_ENV
           echo "Benchmark (${{ github.event.pull_request.head.sha }})" >> $GITHUB_ENV
@@ -134,19 +134,19 @@ jobs:
           echo '<details><summary>PyG to ArangoDB Diff</summary>' >> $GITHUB_ENV
           echo '' >> $GITHUB_ENV
           echo '```json' >> $GITHUB_ENV
-          echo "$PYG_TO_ARANGODB_DIFF" | jq . >> $GITHUB_ENV
+          echo "$PYG_TO_ARANGODB_DIFF" >> $GITHUB_ENV
           echo '```' >> $GITHUB_ENV
           echo '</details>' >> $GITHUB_ENV
           echo '' >> $GITHUB_ENV
           echo '<details><summary>ArangoDB to PyG Diff</summary>' >> $GITHUB_ENV
           echo '' >> $GITHUB_ENV
           echo '```json' >> $GITHUB_ENV
-          echo "$ARANGODB_TO_PYG_DIFF" | jq . >> $GITHUB_ENV
+          echo "$ARANGODB_TO_PYG_DIFF" >> $GITHUB_ENV
           echo '```' >> $GITHUB_ENV
           echo '</details>' >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
 
-      - name: Comment on PR
+      - name: Post PR Comment
         uses: actions/github-script@v7
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
