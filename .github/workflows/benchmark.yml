@@ -110,18 +110,6 @@ jobs:
           python benchmark/compare.py >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-      - name: Extract PyG to ArangoDB Diff
-        run: |
-          echo "PYG_TO_ARANGODB_DIFF<<EOF" >> $GITHUB_ENV
-          cat benchmark/diff/pyg_to_arangodb.json | jq . >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-
-      - name: Extract ArangoDB to PyG Diff
-        run: |
-          echo "ARANGODB_TO_PYG_DIFF<<EOF" >> $GITHUB_ENV
-          cat benchmark/diff/arangodb_to_pyg.json | jq . >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-
       - name: Prepare PR Comment
         run: |
           echo 'MESSAGE<<EOF' >> $GITHUB_ENV
@@ -131,19 +119,7 @@ jobs:
           echo "$ROOT_SPAN_COMPARISON" | jq . >> $GITHUB_ENV
           echo '```' >> $GITHUB_ENV
           echo '' >> $GITHUB_ENV
-          echo '<details><summary>PyG to ArangoDB Diff</summary>' >> $GITHUB_ENV
-          echo '' >> $GITHUB_ENV
-          echo '```json' >> $GITHUB_ENV
-          echo "$PYG_TO_ARANGODB_DIFF" >> $GITHUB_ENV
-          echo '```' >> $GITHUB_ENV
-          echo '</details>' >> $GITHUB_ENV
-          echo '' >> $GITHUB_ENV
-          echo '<details><summary>ArangoDB to PyG Diff</summary>' >> $GITHUB_ENV
-          echo '' >> $GITHUB_ENV
-          echo '```json' >> $GITHUB_ENV
-          echo "$ARANGODB_TO_PYG_DIFF" >> $GITHUB_ENV
-          echo '```' >> $GITHUB_ENV
-          echo '</details>' >> $GITHUB_ENV
+          echo 'See the full diff [here](https://github.com/arangoml/pyg-adapter/actions/runs/$GITHUB_RUN_ID)' >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
 
       - name: Post PR Comment
@@ -159,3 +135,9 @@ jobs:
               issue_number: prNumber,
               body: message
             });
+
+      - name: Echo Full PyG to ArangoDB Diff
+        run: cat benchmark/diff/pyg_to_arangodb.json | jq .
+
+      - name: Echo Full ArangoDB to PyG Diff
+        run: cat benchmark/diff/arangodb_to_pyg.json | jq .
