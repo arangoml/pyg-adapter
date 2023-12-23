@@ -117,9 +117,9 @@ jobs:
       - name: Prepare PR Message
         run: |
           echo 'MESSAGE<<EOF' >> $GITHUB_ENV
-          echo '**Benchmark ($GITHUB_SHA)**' >> $GITHUB_ENV
+          echo "Benchmark ${GITHUB_SHA}" >> $GITHUB_ENV
           echo 'Root Span Comparisons:' >> $GITHUB_ENV
-          echo "${{ env.ROOT_SPAN_COMPARISON }}" >> $GITHUB_ENV
+          echo "$ROOT_SPAN_COMPARISON" | jq . >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
 
 
