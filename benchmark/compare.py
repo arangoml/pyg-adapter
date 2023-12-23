@@ -106,11 +106,11 @@ def compare_traces(master_trace: dict, branch_trace: dict):
     assert master_trace.get("tags") == branch_trace.get("tags")
 
     result = {
-        "operationName": master_trace.get("operationName"),
+        "operationName": master_trace["operationName"],
         "master_duration": master_trace["duration"],
         "branch_duration": branch_trace["duration"],
         "improvement": f"{round((1 - branch_trace['duration'] / master_trace['duration']) * 100)}%",
-        "tags": master_trace.get("tags"),
+        "tags": master_trace["tags"],
         "children": compare_children(
             master_trace["children"], branch_trace["children"]
         ),
