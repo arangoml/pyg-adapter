@@ -34,6 +34,16 @@ class TracingManager:
         if TRACING_ENABLED and self.__tracer is not None:
             current_span = trace.get_current_span()
             for k, v in attributes.items():
+                if isinstance(v, set):
+                    v = list(sorted(v))
+
+                elif isinstance(v, dict):
+                    v = str(dict(sorted(v.items())))
+
+                # 2D+ List
+                elif isinstance(v, list) and any(isinstance(item, list) for item in v):
+                    v = str(v)
+
                 current_span.set_attribute(k, v)
 
 

@@ -852,7 +852,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             """
 
         col_size: int = self.__db.collection(col).count()
-        TracingManager.set_attributes(col=col, col_size=col_size, meta=str(meta))
+        TracingManager.set_attributes(col=col, col_size=col_size, meta=meta)
 
         with get_export_spinner_progress(f"ADB Export: '{col}' ({col_size})") as p:
             p.add_task(col)
@@ -1018,8 +1018,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
             with start_as_current_span("__process_adb_edge_type_df"):
                 TracingManager.set_attributes(
-                    edge_type=edge_type,
-                    edge_type_df_size=count,
+                    edge_type=edge_type, edge_type_df_size=count
                 )
 
                 # 3. Check for partial Edge Collection import
@@ -1139,7 +1138,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :rtype: torch.Tensor
         :raise adbpyg_adapter.exceptions.ADBMetagraphError: If invalid **meta_val**.
         """
-        TracingManager.set_attributes(meta_key=meta_key, meta_val=str(meta_val))
+        TracingManager.set_attributes(meta_key=meta_key, meta_val=meta_val)
         logger.debug(f"__build_tensor_from_dataframe(df, {meta_key}, {str(meta_val)})")
 
         if type(meta_val) is str:
@@ -1666,7 +1665,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         valid_meta: Dict[Any, PyGMetagraphValues]
         valid_meta = meta if type(meta) is dict else {m: m for m in meta}
-        TracingManager.set_attributes(meta=str(valid_meta))
+        TracingManager.set_attributes(meta=valid_meta)
 
         pyg_keys = (
             set(valid_meta.keys())
