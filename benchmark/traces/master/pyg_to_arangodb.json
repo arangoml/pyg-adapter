@@ -1,8 +1,8 @@
 {
     "spanID": "40212ef7cca5a5a1",
     "operationName": "pyg_to_arangodb",
-    "startTime": 1703354939820545,
-    "duration": 1491957,
+    "startTime": 1703363921366132,
+    "duration": 1470129,
     "tags": {
         "name": "FakeHeteroGraphBenchmark"
     },
@@ -10,31 +10,31 @@
         {
             "spanID": "e8e5216afcbd04c3",
             "operationName": "__get_node_and_edge_types",
-            "startTime": 1703354939820612,
-            "duration": 12,
+            "startTime": 1703363921366221,
+            "duration": 17,
             "tags": {},
             "children": []
         },
         {
             "spanID": "fb97d43588561712",
             "operationName": "__create_adb_graph",
-            "startTime": 1703354939820654,
-            "duration": 8549,
+            "startTime": 1703363921366281,
+            "duration": 5596,
             "tags": {},
             "children": [
                 {
                     "spanID": "cf6a659eb4862b21",
                     "operationName": "__etypes_to_edefinitions",
-                    "startTime": 1703354939824427,
-                    "duration": 21,
+                    "startTime": 1703363921368952,
+                    "duration": 23,
                     "tags": {},
                     "children": []
                 },
                 {
                     "spanID": "e6f4590b9a164106",
                     "operationName": "__ntypes_to_ocollections",
-                    "startTime": 1703354939824477,
-                    "duration": 8,
+                    "startTime": 1703363921369004,
+                    "duration": 9,
                     "tags": {},
                     "children": []
                 }
@@ -43,8 +43,8 @@
         {
             "spanID": "4f65d4d9259f4329",
             "operationName": "__process_pyg_n_type",
-            "startTime": 1703354939830920,
-            "duration": 151250,
+            "startTime": 1703363921373624,
+            "duration": 154737,
             "tags": {
                 "n_type": "v0",
                 "n_type_size": 1008
@@ -53,8 +53,8 @@
                 {
                     "spanID": "bad640fb19488dec",
                     "operationName": "__process_pyg_node_batch",
-                    "startTime": 1703354939830962,
-                    "duration": 13101,
+                    "startTime": 1703363921373669,
+                    "duration": 11623,
                     "tags": {
                         "start_index": 0,
                         "end_index": 1008
@@ -63,8 +63,8 @@
                         {
                             "spanID": "e61a441c12e0c8b2",
                             "operationName": "__set_adb_data",
-                            "startTime": 1703354939832173,
-                            "duration": 9474,
+                            "startTime": 1703363921374931,
+                            "duration": 8928,
                             "tags": {
                                 "meta": "{}"
                             },
@@ -72,22 +72,22 @@
                                 {
                                     "spanID": "af19922ad9b8a714",
                                     "operationName": "__build_dataframe_from_tensor",
-                                    "startTime": 1703354939832364,
-                                    "duration": 4942,
+                                    "startTime": 1703363921375218,
+                                    "duration": 3766,
                                     "tags": {
-                                        "meta_key": "x",
-                                        "meta_val": "x"
+                                        "meta_key": "y",
+                                        "meta_val": "y"
                                     },
                                     "children": []
                                 },
                                 {
                                     "spanID": "78de58575487ce1e",
                                     "operationName": "__build_dataframe_from_tensor",
-                                    "startTime": 1703354939838226,
-                                    "duration": 573,
+                                    "startTime": 1703363921379833,
+                                    "duration": 1975,
                                     "tags": {
-                                        "meta_key": "y",
-                                        "meta_val": "y"
+                                        "meta_key": "x",
+                                        "meta_val": "x"
                                     },
                                     "children": []
                                 }
@@ -98,8 +98,8 @@
                 {
                     "spanID": "19c78df48f4ff31e",
                     "operationName": "__insert_adb_docs",
-                    "startTime": 1703354939844161,
-                    "duration": 137979,
+                    "startTime": 1703363921385369,
+                    "duration": 142960,
                     "tags": {
                         "col": "v0",
                         "size": 1008
@@ -111,8 +111,8 @@
         {
             "spanID": "6f25e2a25a921187",
             "operationName": "__process_pyg_n_type",
-            "startTime": 1703354939984119,
-            "duration": 97803,
+            "startTime": 1703363921530445,
+            "duration": 98388,
             "tags": {
                 "n_type": "v1",
                 "n_type_size": 821
@@ -121,8 +121,8 @@
                 {
                     "spanID": "9c6316b950f24455",
                     "operationName": "__process_pyg_node_batch",
-                    "startTime": 1703354939984160,
-                    "duration": 2664,
+                    "startTime": 1703363921530486,
+                    "duration": 2707,
                     "tags": {
                         "start_index": 0,
                         "end_index": 821
@@ -131,8 +131,8 @@
                         {
                             "spanID": "e9bb17bca3f2c9bf",
                             "operationName": "__set_adb_data",
-                            "startTime": 1703354939984398,
-                            "duration": 1577,
+                            "startTime": 1703363921530734,
+                            "duration": 1610,
                             "tags": {
                                 "meta": "{}"
                             },
@@ -140,8 +140,8 @@
                                 {
                                     "spanID": "f77383c13458a748",
                                     "operationName": "__build_dataframe_from_tensor",
-                                    "startTime": 1703354939984466,
-                                    "duration": 1177,
+                                    "startTime": 1703363921530803,
+                                    "duration": 1223,
                                     "tags": {
                                         "meta_key": "x",
                                         "meta_val": "x"
@@ -155,8 +155,8 @@
                 {
                     "spanID": "7a1d50068d723104",
                     "operationName": "__insert_adb_docs",
-                    "startTime": 1703354939986867,
-                    "duration": 95027,
+                    "startTime": 1703363921533238,
+                    "duration": 95566,
                     "tags": {
                         "col": "v1",
                         "size": 821
@@ -168,8 +168,8 @@
         {
             "spanID": "dd84f39e71545a13",
             "operationName": "__process_pyg_n_type",
-            "startTime": 1703354940083949,
-            "duration": 95862,
+            "startTime": 1703363921630746,
+            "duration": 94787,
             "tags": {
                 "n_type": "v2",
                 "n_type_size": 894
@@ -178,8 +178,8 @@
                 {
                     "spanID": "42af9fc385776e9a",
                     "operationName": "__process_pyg_node_batch",
-                    "startTime": 1703354940083988,
-                    "duration": 2578,
+                    "startTime": 1703363921630788,
+                    "duration": 2623,
                     "tags": {
                         "start_index": 0,
                         "end_index": 894
@@ -188,8 +188,8 @@
                         {
                             "spanID": "ce164dba0ff18e02",
                             "operationName": "__set_adb_data",
-                            "startTime": 1703354940084213,
-                            "duration": 1486,
+                            "startTime": 1703363921631030,
+                            "duration": 1502,
                             "tags": {
                                 "meta": "{}"
                             },
@@ -197,8 +197,8 @@
                                 {
                                     "spanID": "8c778ea6eb2083e6",
                                     "operationName": "__build_dataframe_from_tensor",
-                                    "startTime": 1703354940084281,
-                                    "duration": 1109,
+                                    "startTime": 1703363921631098,
+                                    "duration": 1122,
                                     "tags": {
                                         "meta_key": "x",
                                         "meta_val": "x"
@@ -212,8 +212,8 @@
                 {
                     "spanID": "03983ca8ea7e9d49",
                     "operationName": "__insert_adb_docs",
-                    "startTime": 1703354940086606,
-                    "duration": 93165,
+                    "startTime": 1703363921633455,
+                    "duration": 92050,
                     "tags": {
                         "col": "v2",
                         "size": 894
@@ -225,8 +225,8 @@
         {
             "spanID": "b83e90ec17e0aa3c",
             "operationName": "__process_pyg_e_type",
-            "startTime": 1703354940182160,
-            "duration": 175054,
+            "startTime": 1703363921727597,
+            "duration": 191512,
             "tags": {
                 "e_type": "[\"v2\",\"e0\",\"v1\"]",
                 "e_type_size": 8895
@@ -235,8 +235,8 @@
                 {
                     "spanID": "66194cb1d71037d1",
                     "operationName": "__process_pyg_edge_batch",
-                    "startTime": 1703354940182209,
-                    "duration": 8649,
+                    "startTime": 1703363921727648,
+                    "duration": 8551,
                     "tags": {
                         "start_index": 0,
                         "end_index": 8895
@@ -245,8 +245,8 @@
                         {
                             "spanID": "d3290a4cb5d32b16",
                             "operationName": "__set_adb_data",
-                            "startTime": 1703354940185657,
-                            "duration": 2570,
+                            "startTime": 1703363921731472,
+                            "duration": 2670,
                             "tags": {
                                 "meta": "{}"
                             },
@@ -254,8 +254,8 @@
                                 {
                                     "spanID": "ab0c1681c8f8e3d0",
                                     "operationName": "__build_dataframe_from_tensor",
-                                    "startTime": 1703354940185715,
-                                    "duration": 2015,
+                                    "startTime": 1703363921731557,
+                                    "duration": 1888,
                                     "tags": {
                                         "meta_key": "edge_attr",
                                         "meta_val": "edge_attr"
@@ -269,8 +269,8 @@
                 {
                     "spanID": "004ae545a0116be5",
                     "operationName": "__insert_adb_docs",
-                    "startTime": 1703354940190917,
-                    "duration": 166269,
+                    "startTime": 1703363921736269,
+                    "duration": 182809,
                     "tags": {
                         "col": "e0",
                         "size": 8895
@@ -282,8 +282,8 @@
         {
             "spanID": "7e5b1e7f9ca5499d",
             "operationName": "__process_pyg_e_type",
-            "startTime": 1703354940359096,
-            "duration": 145459,
+            "startTime": 1703363921921310,
+            "duration": 156678,
             "tags": {
                 "e_type": "[\"v1\",\"e0\",\"v2\"]",
                 "e_type_size": 8161
@@ -292,8 +292,8 @@
                 {
                     "spanID": "de1b372ad3fbf47a",
                     "operationName": "__process_pyg_edge_batch",
-                    "startTime": 1703354940359142,
-                    "duration": 5921,
+                    "startTime": 1703363921921358,
+                    "duration": 6323,
                     "tags": {
                         "start_index": 0,
                         "end_index": 8161
@@ -302,8 +302,8 @@
                         {
                             "spanID": "3e70f16a55485822",
                             "operationName": "__set_adb_data",
-                            "startTime": 1703354940362018,
-                            "duration": 2004,
+                            "startTime": 1703363921924293,
+                            "duration": 2166,
                             "tags": {
                                 "meta": "{}"
                             },
@@ -311,8 +311,8 @@
                                 {
                                     "spanID": "534097cabaf3897a",
                                     "operationName": "__build_dataframe_from_tensor",
-                                    "startTime": 1703354940362070,
-                                    "duration": 1530,
+                                    "startTime": 1703363921924356,
+                                    "duration": 1601,
                                     "tags": {
                                         "meta_key": "edge_attr",
                                         "meta_val": "edge_attr"
@@ -326,8 +326,8 @@
                 {
                     "spanID": "ded733e8b421eaeb",
                     "operationName": "__insert_adb_docs",
-                    "startTime": 1703354940365115,
-                    "duration": 139411,
+                    "startTime": 1703363921927749,
+                    "duration": 150209,
                     "tags": {
                         "col": "e0",
                         "size": 8161
@@ -339,8 +339,8 @@
         {
             "spanID": "30e9c5cc101fbccc",
             "operationName": "__process_pyg_e_type",
-            "startTime": 1703354940506405,
-            "duration": 247974,
+            "startTime": 1703363922079865,
+            "duration": 249886,
             "tags": {
                 "e_type": "[\"v0\",\"e0\",\"v1\"]",
                 "e_type_size": 10022
@@ -349,8 +349,8 @@
                 {
                     "spanID": "9148624feac1c14f",
                     "operationName": "__process_pyg_edge_batch",
-                    "startTime": 1703354940506450,
-                    "duration": 7089,
+                    "startTime": 1703363922079911,
+                    "duration": 7285,
                     "tags": {
                         "start_index": 0,
                         "end_index": 10022
@@ -359,8 +359,8 @@
                         {
                             "spanID": "3d15eef738c1962e",
                             "operationName": "__set_adb_data",
-                            "startTime": 1703354940510095,
-                            "duration": 2325,
+                            "startTime": 1703363922083694,
+                            "duration": 2405,
                             "tags": {
                                 "meta": "{}"
                             },
@@ -368,8 +368,8 @@
                                 {
                                     "spanID": "f7b0b7d2cda8056c",
                                     "operationName": "__build_dataframe_from_tensor",
-                                    "startTime": 1703354940510149,
-                                    "duration": 1824,
+                                    "startTime": 1703363922083769,
+                                    "duration": 1877,
                                     "tags": {
                                         "meta_key": "edge_attr",
                                         "meta_val": "edge_attr"
@@ -383,8 +383,8 @@
                 {
                     "spanID": "cd9d2b7d247a8333",
                     "operationName": "__insert_adb_docs",
-                    "startTime": 1703354940513590,
-                    "duration": 240750,
+                    "startTime": 1703363922087247,
+                    "duration": 242475,
                     "tags": {
                         "col": "e0",
                         "size": 10022
@@ -396,8 +396,8 @@
         {
             "spanID": "72ae22448b0163c1",
             "operationName": "__process_pyg_e_type",
-            "startTime": 1703354940759178,
-            "duration": 211050,
+            "startTime": 1703363922331731,
+            "duration": 154780,
             "tags": {
                 "e_type": "[\"v1\",\"e0\",\"v0\"]",
                 "e_type_size": 8179
@@ -406,8 +406,8 @@
                 {
                     "spanID": "149818d11759edc3",
                     "operationName": "__process_pyg_edge_batch",
-                    "startTime": 1703354940759236,
-                    "duration": 54068,
+                    "startTime": 1703363922331779,
+                    "duration": 6392,
                     "tags": {
                         "start_index": 0,
                         "end_index": 8179
@@ -416,8 +416,8 @@
                         {
                             "spanID": "51ef1922fe43c49e",
                             "operationName": "__set_adb_data",
-                            "startTime": 1703354940809338,
-                            "duration": 2884,
+                            "startTime": 1703363922334788,
+                            "duration": 2280,
                             "tags": {
                                 "meta": "{}"
                             },
@@ -425,8 +425,8 @@
                                 {
                                     "spanID": "820865d6e005b860",
                                     "operationName": "__build_dataframe_from_tensor",
-                                    "startTime": 1703354940809740,
-                                    "duration": 2000,
+                                    "startTime": 1703363922334852,
+                                    "duration": 1690,
                                     "tags": {
                                         "meta_key": "edge_attr",
                                         "meta_val": "edge_attr"
@@ -440,8 +440,8 @@
                 {
                     "spanID": "eece328bff7b118e",
                     "operationName": "__insert_adb_docs",
-                    "startTime": 1703354940813375,
-                    "duration": 156823,
+                    "startTime": 1703363922338234,
+                    "duration": 148247,
                     "tags": {
                         "col": "e0",
                         "size": 8179
@@ -453,8 +453,8 @@
         {
             "spanID": "1beb37117d41e602",
             "operationName": "__process_pyg_e_type",
-            "startTime": 1703354940972247,
-            "duration": 155663,
+            "startTime": 1703363922488590,
+            "duration": 156159,
             "tags": {
                 "e_type": "[\"v1\",\"e0\",\"v1\"]",
                 "e_type_size": 8159
@@ -463,8 +463,8 @@
                 {
                     "spanID": "8d1fd9b74d2b9deb",
                     "operationName": "__process_pyg_edge_batch",
-                    "startTime": 1703354940972290,
-                    "duration": 6041,
+                    "startTime": 1703363922488644,
+                    "duration": 6517,
                     "tags": {
                         "start_index": 0,
                         "end_index": 8159
@@ -473,8 +473,8 @@
                         {
                             "spanID": "b4e1357d4a84eb03",
                             "operationName": "__set_adb_data",
-                            "startTime": 1703354940975250,
-                            "duration": 2092,
+                            "startTime": 1703363922491712,
+                            "duration": 2232,
                             "tags": {
                                 "meta": "{}"
                             },
@@ -482,8 +482,8 @@
                                 {
                                     "spanID": "8c25166a1ff39849",
                                     "operationName": "__build_dataframe_from_tensor",
-                                    "startTime": 1703354940975304,
-                                    "duration": 1621,
+                                    "startTime": 1703363922491781,
+                                    "duration": 1669,
                                     "tags": {
                                         "meta_key": "edge_attr",
                                         "meta_val": "edge_attr"
@@ -497,8 +497,8 @@
                 {
                     "spanID": "d080e66e552f233a",
                     "operationName": "__insert_adb_docs",
-                    "startTime": 1703354940978376,
-                    "duration": 149505,
+                    "startTime": 1703363922495223,
+                    "duration": 149497,
                     "tags": {
                         "col": "e0",
                         "size": 8159
@@ -510,8 +510,8 @@
         {
             "spanID": "8a5006c1ec188efb",
             "operationName": "__process_pyg_e_type",
-            "startTime": 1703354941129788,
-            "duration": 181631,
+            "startTime": 1703363922646634,
+            "duration": 188557,
             "tags": {
                 "e_type": "[\"v0\",\"e0\",\"v2\"]",
                 "e_type_size": 10034
@@ -520,8 +520,8 @@
                 {
                     "spanID": "f6be1f723405095c",
                     "operationName": "__process_pyg_edge_batch",
-                    "startTime": 1703354941129836,
-                    "duration": 7327,
+                    "startTime": 1703363922646683,
+                    "duration": 7481,
                     "tags": {
                         "start_index": 0,
                         "end_index": 10034
@@ -530,8 +530,8 @@
                         {
                             "spanID": "9a6a5f92cca74147",
                             "operationName": "__set_adb_data",
-                            "startTime": 1703354941133467,
-                            "duration": 2550,
+                            "startTime": 1703363922650275,
+                            "duration": 2651,
                             "tags": {
                                 "meta": "{}"
                             },
@@ -539,8 +539,8 @@
                                 {
                                     "spanID": "966e12778c1745a7",
                                     "operationName": "__build_dataframe_from_tensor",
-                                    "startTime": 1703354941133519,
-                                    "duration": 1999,
+                                    "startTime": 1703363922650330,
+                                    "duration": 2067,
                                     "tags": {
                                         "meta_key": "edge_attr",
                                         "meta_val": "edge_attr"
@@ -554,8 +554,8 @@
                 {
                     "spanID": "71eacd0549a3e80e",
                     "operationName": "__insert_adb_docs",
-                    "startTime": 1703354941137235,
-                    "duration": 174154,
+                    "startTime": 1703363922654225,
+                    "duration": 180936,
                     "tags": {
                         "col": "e0",
                         "size": 10034
