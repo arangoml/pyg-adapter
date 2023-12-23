@@ -117,7 +117,7 @@ jobs:
       - name: Prepare PR Message
         run: |
           echo 'MESSAGE<<EOF' >> $GITHUB_ENV
-          echo "Benchmark (${github.event.pull_request.head.sha})" >> $GITHUB_ENV
+          echo "Benchmark (${{ github.event.pull_request.head.sha }})" >> $GITHUB_ENV
           echo '' >> $GITHUB_ENV
           echo 'Root Span Comparisons:' >> $GITHUB_ENV
           echo '```json' >> $GITHUB_ENV
