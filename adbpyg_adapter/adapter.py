@@ -470,10 +470,6 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
     ###########################
 
     @with_tracing
-    def foo(self):
-        pass
-
-    @with_tracing
     def pyg_to_arangodb(
         self,
         name: str,
@@ -1179,7 +1175,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
     # Private: PyG -> ArangoDB #
     ############################
 
-    # @with_tracing
+    @with_tracing
     def __get_node_and_edge_types(
         self,
         name: str,
