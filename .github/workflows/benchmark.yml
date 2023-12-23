@@ -119,7 +119,7 @@ jobs:
           echo "$ROOT_SPAN_COMPARISON" | jq . >> $GITHUB_ENV
           echo '```' >> $GITHUB_ENV
           echo '' >> $GITHUB_ENV
-          echo 'See the full diff [here](https://github.com/arangoml/pyg-adapter/actions/runs/$GITHUB_RUN_ID)' >> $GITHUB_ENV
+          echo "See the full diff [here](https://github.com/arangoml/pyg-adapter/actions/runs/$GITHUB_RUN_ID)" >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
 
       - name: Post PR Comment
