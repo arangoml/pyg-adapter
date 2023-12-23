@@ -3,11 +3,14 @@ name: benchmark
 on:
   workflow_dispatch:
   pull_request:
+    paths:
+      - "adbpyg_adapter/*.py"
+      - "benchmark/*.py"
   push:
       branches:
         - master
       paths:
-        - "src/*.py"
+        - "adbpyg_adapter/*.py"
         - "benchmark/*.py"
 
 jobs:
@@ -54,26 +57,26 @@ jobs:
       - name: Echo ArangoDB to PyG 
         run: cat benchmark/traces/master/arangodb_to_pyg.json | jq .
 
-      # - name: Make commit for auto-generated benchmark files
-      #   uses: EndBug/add-and-commit@v9
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      #   with:
-      #     add: "./benchmark/traces/master/*.json"
-      #     new_branch: actions/benchmark
-      #     message: "generate benchmark files for $GITHUB_SHA"
+      - name: Make commit for auto-generated benchmark files
+        uses: EndBug/add-and-commit@v9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          add: "./benchmark/traces/master/*.json"
+          new_branch: actions/benchmark
+          message: "generate benchmark files for $GITHUB_SHA"
 
-      # - name: Create pull request for the auto generated benchmark
-      #   run: |
-      #     echo "PR_URL=$(gh pr create \
-      #       --title "benchmark: $GITHUB_SHA" \
-      #       --body "beep boop, i am a robot" \
-      #       --label documentation)" >> $GITHUB_ENV
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create pull request for the auto generated benchmark
+        run: |
+          echo "PR_URL=$(gh pr create \
+            --title "benchmark: $GITHUB_SHA" \
+            --body "beep boop, i am a robot ($GITHUB_SHA)" \
+            --label documentation)" >> $GITHUB_ENV
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   
-      # - name: Alert developer of open PR
-      #   run: echo "Benchmark $PR_URL is ready to be merged by developer."
+      - name: Alert developer of open PR
+        run: echo "Benchmark $PR_URL is ready to be merged by developer."
 
   compare_traces:
     if: github.event_name == 'pull_request'
@@ -137,7 +140,7 @@ jobs:
             });
 
       - name: Echo Full PyG to ArangoDB Diff
-        run: cat benchmark/diff/pyg_to_arangodb.json | jq .
+        run: cat benchmark/traces/diff/pyg_to_arangodb.json | jq .
 
       - name: Echo Full ArangoDB to PyG Diff
-        run: cat benchmark/diff/arangodb_to_pyg.json | jq .
+        run: cat benchmark/traces/diff/arangodb_to_pyg.json | jq .

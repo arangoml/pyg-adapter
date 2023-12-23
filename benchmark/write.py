@@ -13,9 +13,6 @@ from arango import ArangoClient
 from retry import retry
 from torch_geometric.datasets import FakeHeteroDataset
 
-# import uuid
-
-
 try:
     from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 except ImportError:

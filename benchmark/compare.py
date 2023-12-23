@@ -128,7 +128,7 @@ def main():
         branch_trace = json.load(open(f"{current_dir}/traces/branch/{operation}.json"))
         diff_trace = compare_traces(master_trace, branch_trace)
 
-        with open(f"{current_dir}/diff/{operation}.json", "w") as file:
+        with open(f"{current_dir}/traces/diff/{operation}.json", "w") as file:
             file.write(json.dumps(diff_trace, indent=4))
 
         root_span_diffs[operation] = {
