@@ -111,28 +111,17 @@ jobs:
           python benchmark/compare.py >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-      # - name: Echo PyG to ArangoDB Diff
-      #   run: |
-      #     echo "PYG_TO_ARANGODB_DIFF<<EOF" >> $GITHUB_ENV
-      #     cat benchmark/diff/pyg_to_arangodb.json | jq >> $GITHUB_ENV
-      #     echo "EOF" >> $GITHUB_ENV
-
-      # - name: Echo ArangoDB to PyG Diff
-      #   run: |
-      #     echo "ARANGODB_TO_PYG_DIFF<<EOF" >> $GITHUB_ENV
-      #     cat benchmark/diff/arangodb_to_pyg.json | jq >> $GITHUB_ENV
-      #     echo "EOF" >> $GITHUB_ENV
+      - run: echo "PYG_TO_ARANGODB_DIFF=$(jq -c . < benchmark/diff/pyg_to_arangodb.json)" >> $GITHUB_ENV
+      - run: echo "ARANGODB_TO_PYG_DIFF=$(jq -c . < benchmark/diff/arangodb_to_pyg.json)" >> $GITHUB_ENV
 
       - name: Prepare PR Message
         run: |
-          echo "MESSAGE<<EOF" >> $GITHUB_ENV
-          echo '**Benchmark (${GITHUB_SHA})**' >> $GITHUB_ENV
-          echo '' >> $GITHUB_ENV
+          echo 'MESSAGE<<EOF' >> $GITHUB_ENV
+          echo '**Benchmark ($GITHUB_SHA)**' >> $GITHUB_ENV
           echo 'Root Span Comparisons:' >> $GITHUB_ENV
-          echo '```json' >> $GITHUB_ENV
-          cat $ROOT_SPAN_COMPARISON | jq >> $GITHUB_ENV
-          echo '```' >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          echo "${{ env.ROOT_SPAN_COMPARISON }}" >> $GITHUB_ENV
+          echo 'EOF' >> $GITHUB_ENV
+
 
       # - name: Prepare PR Message
       #   run: |
