@@ -596,8 +596,6 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             name, pyg_g, metagraph, is_explicit_metagraph, is_homogeneous
         )
 
-        self.foo()
-
         # Create the ArangoDB Graph
         adb_graph = self.__create_adb_graph(
             name, overwrite_graph, node_types, edge_types
