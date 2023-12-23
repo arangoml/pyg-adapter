@@ -38,13 +38,15 @@ np.random.seed(seed)
 class JaegerSpan:
     def __init__(
         self,
-        spanID: str,
-        operationName: str,
+        span_id: str,
+        operation_name: str,
+        start_time: int,
         duration: int,
         tags: list[dict[str, str]],
     ):
-        self.span_id = spanID
-        self.operation_name = operationName
+        self.span_id = span_id
+        self.operation_name = operation_name
+        self.start_time = start_time
         self.duration = duration
         self.tags = {
             tag["key"]: tag["value"]
@@ -65,6 +67,7 @@ class JaegerSpan:
         return {
             "spanID": self.span_id,
             "operationName": self.operation_name,
+            "startTime": self.start_time,
             "duration": self.duration,
             "tags": self.tags,
             "children": [child.to_dict() for child in self.children.values()],
@@ -110,6 +113,7 @@ class JaegerSpanTree:
             span_object = JaegerSpan(
                 span_id,
                 operation_name,
+                span["startTime"],
                 span["duration"],
                 span["tags"],
             )
