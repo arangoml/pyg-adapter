@@ -470,6 +470,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
     ###########################
 
     @with_tracing
+    def foo(self):
+        pass
+
+    @with_tracing
     def pyg_to_arangodb(
         self,
         name: str,
@@ -595,6 +599,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         node_types, edge_types = self.__get_node_and_edge_types(
             name, pyg_g, metagraph, is_explicit_metagraph, is_homogeneous
         )
+
+        self.foo()
 
         # Create the ArangoDB Graph
         adb_graph = self.__create_adb_graph(
@@ -1500,9 +1506,6 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :type adb_import_kwargs: Dict[str, Any]
         """
         TracingManager.set_attributes(n_type=n_type, n_type_size=node_data_total_size)
-
-        import time
-        time.sleep(1)
 
         self.__process_batches(
             n_type,
