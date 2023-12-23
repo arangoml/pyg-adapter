@@ -51,13 +51,19 @@ def match_children(
 ):
     # Attempt to find a matching child in Branch Children for the current Master Child
     for i, branch_candidate in enumerate(branch_children):
-        if branch_candidate.get("operationName") == master_child.get("operationName"):
+        name_match = master_child["operationName"] == branch_candidate["operationName"]
+        tags_match = master_child["tags"] == branch_candidate["tags"]
+
+        if name_match and tags_match:
             branch_children.pop(i)
             return master_child, branch_candidate
 
     # Attempt to find a matching child in Master Children for the current Branch Child
     for i, master_candidate in enumerate(master_children):
-        if master_candidate.get("operationName") == branch_child.get("operationName"):
+        name_match = master_candidate["operationName"] == branch_child["operationName"]
+        tags_match = master_candidate["tags"] == branch_child["tags"]
+
+        if name_match and tags_match:
             master_children.pop(i)
             return master_candidate, branch_child
 
@@ -73,20 +79,24 @@ def compare_children(master_children: list[dict], branch_children: list[dict]):
         master_child = master_children_sorted.pop(0) if master_children_sorted else None
         branch_child = branch_children_sorted.pop(0) if branch_children_sorted else None
 
-        if (
-            master_child
-            and branch_child
-            and master_child.get("operationName") != branch_child.get("operationName")
-        ):
-            # Find the matching pair if they are out of order
-            master_child, branch_child = match_children(
-                master_child,
-                branch_child,
-                master_children_sorted,
-                branch_children_sorted,
-            )
+        if master_child and branch_child:
+            name_match = master_child["operationName"] == branch_child["operationName"]
+            tags_match = master_child["tags"] == branch_child["tags"]
 
-        result.append(compare_span(master_child, branch_child))
+            if not (name_match and tags_match):
+                # Find the matching pair if they are out of order
+                master_child, branch_child = match_children(
+                    master_child,
+                    branch_child,
+                    master_children_sorted,
+                    branch_children_sorted,
+                )
+
+        if master_child or branch_child:
+            result.append(compare_span(master_child, branch_child))
+        else:
+            # If both are None, break out of the loop to prevent appending None values
+            break
 
     return result
 
@@ -127,11 +137,7 @@ def main():
             "improvement": diff_trace["improvement"],
         }
 
-    print("-" * 50)
     print(json.dumps(root_span_diffs, indent=4))
-    print("-" * 50)
-
-    return root_span_diffs
 
 
 if __name__ == "__main__":
