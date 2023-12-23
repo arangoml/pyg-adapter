@@ -242,7 +242,7 @@ def run_arangodb_to_pyg(adapter: ADBPyG_Adapter, name: str) -> None:
 
 
 def main():
-    service_name = f"adbpyg-adapter-benchmark"
+    service_name = "adbpyg-adapter-benchmark"
 
     # 1. Parse the arguments
     args = parse_args()
