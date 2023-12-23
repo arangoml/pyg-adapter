@@ -101,6 +101,10 @@ jobs:
           pip install torch-scatter torch-sparse -f https://data.pyg.org/whl/torch-$(python -c 'import torch; print(torch.__version__.split("+")[0])')+cpu.html
           pip install -e '.[dev, tracing]'
 
+      - name: Declare some variables
+        shell: bash
+        run: echo "sha_short=$(git rev-parse --short "$GITHUB_SHA")" >> "$GITHUB_ENV"
+
       - name: Write PR traces
         run: python benchmark/write.py --output_dir branch
 
@@ -117,9 +121,11 @@ jobs:
       - name: Prepare PR Message
         run: |
           echo 'MESSAGE<<EOF' >> $GITHUB_ENV
-          echo "Benchmark ${GITHUB_SHA}" >> $GITHUB_ENV
+          echo "Benchmark ${sha_short}" >> $GITHUB_ENV
           echo 'Root Span Comparisons:' >> $GITHUB_ENV
+          echo '```json' >> $GITHUB_ENV
           echo "$ROOT_SPAN_COMPARISON" | jq . >> $GITHUB_ENV
+          echo '```' >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
 
 
