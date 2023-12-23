@@ -1501,6 +1501,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         """
         TracingManager.set_attributes(n_type=n_type, n_type_size=node_data_total_size)
 
+        import time
+        time.sleep(1)
+
         self.__process_batches(
             n_type,
             node_data_total_size,
