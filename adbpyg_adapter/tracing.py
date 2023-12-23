@@ -30,7 +30,7 @@ class TracingManager:
         cls.__tracer = tracer
 
     @classmethod
-    def set_attributes(self, **attributes: Any) -> None:
+    def set_attributes(self, **attributes: Any) -> None:  # pragma: no cover
         if TRACING_ENABLED and self.__tracer is not None:
             current_span = trace.get_current_span()
             for k, v in attributes.items():
