@@ -50,19 +50,22 @@ class TracingManager:
 T = TypeVar("T", bound=Callable[..., Any])
 
 
-def with_tracing(method: T) -> T:
-    if not TRACING_ENABLED:
-        return method  # pragma: no cover
+def with_tracing(span_name: Optional[str] = None) -> Callable[[T], T]:
+    def decorator(method: T) -> T:
+        if not TRACING_ENABLED:
+            return method  # pragma: no cover
 
-    @wraps(method)
-    def decorator(*args: Any, **kwargs: Any) -> Any:
-        if tracer := TracingManager.get_tracer():
-            with tracer.start_as_current_span(method.__name__):
-                return method(*args, **kwargs)
+        @wraps(method)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            if tracer := TracingManager.get_tracer():
+                with tracer.start_as_current_span(span_name or method.__name__):
+                    return method(*args, **kwargs)
 
-        return method(*args, **kwargs)
+            return method(*args, **kwargs)
 
-    return cast(T, decorator)
+        return cast(T, wrapper)
+
+    return decorator
 
 
 @contextmanager

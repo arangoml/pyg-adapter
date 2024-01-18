@@ -126,7 +126,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
     # Public: ArangoDB -> PyG #
     ###########################
 
-    @with_tracing
+    @with_tracing()
     def arangodb_to_pyg(
         self,
         name: str,
@@ -363,7 +363,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         logger.info(f"Created PyG '{name}' Graph")
         return data
 
-    @with_tracing
+    @with_tracing()
     def arangodb_collections_to_pyg(
         self,
         name: str,
@@ -417,7 +417,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             name, metagraph, preserve_adb_keys, strict, **adb_export_kwargs
         )
 
-    @with_tracing
+    @with_tracing()
     def arangodb_graph_to_pyg(
         self,
         name: str,
@@ -469,7 +469,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
     # Public: PyG -> ArangoDB #
     ###########################
 
-    @with_tracing
+    @with_tracing()
     def pyg_to_arangodb(
         self,
         name: str,
@@ -696,7 +696,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
     # Private: ArangoDB -> PyG #
     ############################
 
-    @with_tracing
+    @with_tracing("__process_adb_v_col")
     def __process_adb_v_col(
         self,
         v_col: str,
@@ -742,7 +742,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             node_data=node_data,
         )
 
-    @with_tracing
+    @with_tracing("__process_adb_e_col")
     def __process_adb_e_col(
         self,
         e_col: str,
@@ -801,7 +801,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             is_homogeneous=is_homogeneous,
         )
 
-    @with_tracing
+    @with_tracing("__fetch_adb_docs")
     def __fetch_adb_docs(
         self,
         col: str,
@@ -865,7 +865,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
             return cursor, col_size
 
-    @with_tracing
+    @with_tracing("__process_adb_cursor")
     def __process_adb_cursor(
         self,
         progress_color: str,
@@ -916,7 +916,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 if cursor.has_more():
                     cursor.fetch()
 
-    @with_tracing
+    @with_tracing("__process_adb_vertex_df")
     def __process_adb_vertex_df(
         self,
         i: int,
@@ -963,7 +963,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         return i
 
-    @with_tracing
+    @with_tracing("__process_adb_edge_df")
     def __process_adb_edge_df(
         self,
         _: int,
@@ -1067,7 +1067,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         return 1  # Useless return value, but needed for type hinting
 
-    @with_tracing
+    @with_tracing("__split_adb_ids")
     def __split_adb_ids(self, s: Series) -> Series:
         """AranogDB -> PyG: Helper method to split the ArangoDB IDs
         within a Series into two columns
@@ -1080,7 +1080,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         """
         return s.str.split(pat="/", n=1, expand=True)
 
-    @with_tracing
+    @with_tracing("__set_pyg_data")
     def __set_pyg_data(
         self,
         meta: Union[Set[str], Dict[str, ADBMetagraphValues]],
@@ -1116,7 +1116,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 m = f"'{k}' key in PyG Data must point to a Tensor"
                 raise TypeError(m)
 
-    @with_tracing
+    @with_tracing("__build_tensor_from_dataframe")
     def __build_tensor_from_dataframe(
         self,
         adb_df: DataFrame,
@@ -1173,7 +1173,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
     # Private: PyG -> ArangoDB #
     ############################
 
-    @with_tracing
+    @with_tracing("__get_node_and_edge_types")
     def __get_node_and_edge_types(
         self,
         name: str,
@@ -1217,7 +1217,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         return node_types, edge_types
 
-    @with_tracing
+    @with_tracing("__etypes_to_edefinitions")
     def __etypes_to_edefinitions(self, edge_types: List[EdgeType]) -> List[Json]:
         """PyG -> ArangoDB: Converts PyG edge_types to ArangoDB edge_definitions
 
@@ -1262,7 +1262,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         return edge_definitions
 
-    @with_tracing
+    @with_tracing("__ntypes_to_ocollections")
     def __ntypes_to_ocollections(
         self, node_types: List[str], edge_types: List[EdgeType]
     ) -> List[str]:
@@ -1286,7 +1286,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         orphan_collections = set(node_types) ^ non_orphan_collections
         return list(orphan_collections)
 
-    @with_tracing
+    @with_tracing("__create_adb_graph")
     def __create_adb_graph(
         self,
         name: str,
@@ -1325,7 +1325,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             orphan_collections,
         )
 
-    @with_tracing
+    @with_tracing("__process_pyg_node_batch")
     def __process_pyg_node_batch(
         self,
         n_type: str,
@@ -1385,7 +1385,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         return df
 
-    @with_tracing
+    @with_tracing("__process_pyg_edge_batch")
     def __process_pyg_edge_batch(
         self,
         e_type: EdgeType,
@@ -1461,7 +1461,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         return df
 
-    @with_tracing
+    @with_tracing("__process_pyg_n_type")
     def __process_pyg_n_type(
         self,
         n_type: str,
@@ -1513,7 +1513,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             adb_import_kwargs,
         )
 
-    @with_tracing
+    @with_tracing("__process_pyg_e_type")
     def __process_pyg_e_type(
         self,
         e_type: EdgeType,
@@ -1619,7 +1619,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             start_index = end_index
             end_index = min(end_index + batch_size, total_size)
 
-    @with_tracing
+    @with_tracing("__set_adb_data")
     def __set_adb_data(
         self,
         df: DataFrame,
@@ -1705,7 +1705,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         return df
 
-    @with_tracing
+    @with_tracing("__build_dataframe_from_tensor")
     def __build_dataframe_from_tensor(
         self,
         pyg_tensor: Tensor,
@@ -1782,7 +1782,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         raise PyGMetagraphError(f"Invalid {meta_val} type")  # pragma: no cover
 
-    @with_tracing
+    @with_tracing("__insert_adb_docs")
     def __insert_adb_docs(
         self,
         spinner_progress: Progress,
