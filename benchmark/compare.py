@@ -9,8 +9,15 @@ def sort_children_by_start_time(children):
 
 def compare_span(master_child: Optional[dict], branch_child: Optional[dict]):
     if master_child and branch_child:
-        assert master_child.get("operationName") == branch_child.get("operationName")
-        assert master_child.get("tags") == branch_child.get("tags")
+        assert master_child.get("operationName") == branch_child.get("operationName"), (
+            f"Master Child Operation Name: {master_child.get('operationName')}\n"
+            f"Branch Child Operation Name: {branch_child.get('operationName')}"
+        )
+
+        assert master_child.get("tags") == branch_child.get("tags"), (
+            f"Master Child Tags: {master_child.get('tags')}\n"
+            f"Branch Child Tags: {branch_child.get('tags')}"
+        )
 
     operation_name = (
         master_child.get("operationName")
@@ -102,8 +109,15 @@ def compare_children(master_children: list[dict], branch_children: list[dict]):
 
 
 def compare_traces(master_trace: dict, branch_trace: dict):
-    assert master_trace.get("operationName") == branch_trace.get("operationName")
-    assert master_trace.get("tags") == branch_trace.get("tags")
+    assert master_trace.get("operationName") == branch_trace.get("operationName"), (
+        f"Master Operation Name: {master_trace.get('operationName')}\n"
+        f"Branch Operation Name: {branch_trace.get('operationName')}"
+    )
+
+    assert master_trace.get("tags") == branch_trace.get("tags"), (
+        f"Master Tags: {master_trace.get('tags')}\n"
+        f"Branch Tags: {branch_trace.get('tags')}"
+    )
 
     result = {
         "operationName": master_trace["operationName"],
