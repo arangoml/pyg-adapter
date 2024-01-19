@@ -726,7 +726,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         # 1. Fetch ArangoDB vertices
         v_col_cursor, v_col_size = self.__fetch_adb_docs(
-            v_col, meta, **adb_export_kwargs
+            v_col, False, meta, **adb_export_kwargs
         )
 
         # 2. Process ArangoDB vertices
@@ -782,7 +782,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         # 1. Fetch ArangoDB edges
         e_col_cursor, e_col_size = self.__fetch_adb_docs(
-            e_col, meta, **adb_export_kwargs
+            e_col, True, meta, **adb_export_kwargs
         )
 
         # 2. Process ArangoDB edges
@@ -805,6 +805,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
     def __fetch_adb_docs(
         self,
         col: str,
+        is_edge: bool,
         meta: Union[Set[str], Dict[str, ADBMetagraphValues]],
         **adb_export_kwargs: Any,
     ) -> Tuple[Cursor, int]:
@@ -813,6 +814,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         :param col: The ArangoDB collection.
         :type col: str
+        :param is_edge: True if **col** is an edge collection.
+        :type is_edge: bool
         :param meta: The MetaGraph associated to **col**
         :type meta: Set[str] | Dict[str, adbpyg_adapter.typings.ADBMetagraphValues]
         :param adb_export_kwargs: Keyword arguments to specify AQL query options
@@ -822,34 +825,28 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :rtype: pandas.DataFrame
         """
 
-        def get_aql_return_value(
-            meta: Union[Set[str], Dict[str, ADBMetagraphValues]]
-        ) -> str:
+        def get_aql_return_value() -> str:
             """Helper method to formulate the AQL `RETURN` value based on
             the document attributes specified in **meta**
             """
-            attributes = []
+            attributes = ["_key"]
+            attributes += ["_from", "_to"] if is_edge else []
 
             if type(meta) is set:
-                attributes = list(meta)
+                attributes += list(meta)
 
             elif type(meta) is dict:
                 for value in meta.values():
                     if type(value) is str:
                         attributes.append(value)
                     elif type(value) is dict:
-                        attributes.extend(list(value.keys()))
+                        attributes += list(value.keys())
                     elif callable(value):
                         # Cannot determine which attributes to extract if UDFs are used
                         # Therefore we just return the entire document
                         return "doc"
 
-            return f"""
-                MERGE(
-                    {{ _key: doc._key, _from: doc._from, _to: doc._to }},
-                    KEEP(doc, {list(attributes)})
-                )
-            """
+            return f"KEEP(doc, {attributes})"
 
         col_size: int = self.__db.collection(col).count()
         TracingManager.set_attributes(col=col, col_size=col_size, meta=meta)
@@ -858,7 +855,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             p.add_task(col)
 
             cursor: Cursor = self.__db.aql.execute(
-                f"FOR doc IN @@col RETURN {get_aql_return_value(meta)}",
+                f"FOR doc IN @@col RETURN {get_aql_return_value()}",
                 bind_vars={"@col": col},
                 **{**adb_export_kwargs, "stream": True},
             )
