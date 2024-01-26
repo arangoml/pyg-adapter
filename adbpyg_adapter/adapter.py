@@ -1013,7 +1013,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         ):
             edge_type = (from_col, e_col, to_col)
 
-            with start_as_current_span("__process_adb_edge_type_df"):
+            with start_as_current_span("process_adb_edge_type_df"):
                 TracingManager.set_attributes(
                     edge_type=edge_type, edge_type_df_size=count
                 )
