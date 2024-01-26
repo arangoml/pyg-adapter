@@ -316,7 +316,7 @@
                                 },
                                 {
                                     "spanID": "9cdf5a865306f3f5",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352005840,
                                     "duration": 4481,
                                     "tags": {
@@ -377,7 +377,7 @@
                                 },
                                 {
                                     "spanID": "1dfc83524562be7f",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352017258,
                                     "duration": 1567,
                                     "tags": {
@@ -438,7 +438,7 @@
                                 },
                                 {
                                     "spanID": "2577bffac87a7463",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352025914,
                                     "duration": 1610,
                                     "tags": {
@@ -499,7 +499,7 @@
                                 },
                                 {
                                     "spanID": "ae3b16ec9a27d858",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352034500,
                                     "duration": 1812,
                                     "tags": {
@@ -560,7 +560,7 @@
                                 },
                                 {
                                     "spanID": "5ec17dbe176ea1b1",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352044530,
                                     "duration": 1601,
                                     "tags": {
@@ -621,7 +621,7 @@
                                 },
                                 {
                                     "spanID": "1fb797fab7d6467b",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352052573,
                                     "duration": 2449,
                                     "tags": {
@@ -682,7 +682,7 @@
                                 },
                                 {
                                     "spanID": "19fbeb1d9edfa3da",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352062419,
                                     "duration": 1591,
                                     "tags": {
@@ -743,7 +743,7 @@
                                 },
                                 {
                                     "spanID": "80ee526e0fa07a3f",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352071338,
                                     "duration": 2128,
                                     "tags": {
@@ -804,7 +804,7 @@
                                 },
                                 {
                                     "spanID": "bb4a06cbe786ab37",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352081353,
                                     "duration": 1826,
                                     "tags": {
@@ -838,7 +838,7 @@
                                 },
                                 {
                                     "spanID": "2b5f693291dc59ef",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352083198,
                                     "duration": 1000,
                                     "tags": {
@@ -899,7 +899,7 @@
                                 },
                                 {
                                     "spanID": "57a1cb712975d279",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352091558,
                                     "duration": 1623,
                                     "tags": {
@@ -960,7 +960,7 @@
                                 },
                                 {
                                     "spanID": "68ef8f5fae68690a",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352108876,
                                     "duration": 1657,
                                     "tags": {
@@ -1021,7 +1021,7 @@
                                 },
                                 {
                                     "spanID": "403d1f83a859890c",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352117507,
                                     "duration": 1913,
                                     "tags": {
@@ -1082,7 +1082,7 @@
                                 },
                                 {
                                     "spanID": "47e7f5938b5885ca",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352126533,
                                     "duration": 1570,
                                     "tags": {
@@ -1143,7 +1143,7 @@
                                 },
                                 {
                                     "spanID": "f2686baa971c702d",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352134800,
                                     "duration": 1970,
                                     "tags": {
@@ -1204,7 +1204,7 @@
                                 },
                                 {
                                     "spanID": "a69cfb85d432f8db",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352143909,
                                     "duration": 1588,
                                     "tags": {
@@ -1265,7 +1265,7 @@
                                 },
                                 {
                                     "spanID": "60ef147172b8ff39",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352152452,
                                     "duration": 1866,
                                     "tags": {
@@ -1326,7 +1326,7 @@
                                 },
                                 {
                                     "spanID": "6b10e53a9145de05",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352207070,
                                     "duration": 1961,
                                     "tags": {
@@ -1387,7 +1387,7 @@
                                 },
                                 {
                                     "spanID": "870f084c7244f536",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352218698,
                                     "duration": 1671,
                                     "tags": {
@@ -1421,7 +1421,7 @@
                                 },
                                 {
                                     "spanID": "c167733f9a9e4310",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352220388,
                                     "duration": 1153,
                                     "tags": {
@@ -1482,7 +1482,7 @@
                                 },
                                 {
                                     "spanID": "e00111e5d29dc5df",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352231887,
                                     "duration": 1594,
                                     "tags": {
@@ -1543,7 +1543,7 @@
                                 },
                                 {
                                     "spanID": "b9bdee2dd663049d",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352244513,
                                     "duration": 1666,
                                     "tags": {
@@ -1604,7 +1604,7 @@
                                 },
                                 {
                                     "spanID": "b7a28e0a03a89879",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352257895,
                                     "duration": 1837,
                                     "tags": {
@@ -1665,7 +1665,7 @@
                                 },
                                 {
                                     "spanID": "a636425c9bbd750d",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352269400,
                                     "duration": 1826,
                                     "tags": {
@@ -1726,7 +1726,7 @@
                                 },
                                 {
                                     "spanID": "658de17eec3aa314",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352283206,
                                     "duration": 1699,
                                     "tags": {
@@ -1787,7 +1787,7 @@
                                 },
                                 {
                                     "spanID": "2227d96d41a93f90",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352292098,
                                     "duration": 1663,
                                     "tags": {
@@ -1848,7 +1848,7 @@
                                 },
                                 {
                                     "spanID": "04c14982d9ead926",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352303318,
                                     "duration": 1696,
                                     "tags": {
@@ -1909,7 +1909,7 @@
                                 },
                                 {
                                     "spanID": "e8ec01b3914591ae",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352315906,
                                     "duration": 1594,
                                     "tags": {
@@ -1970,7 +1970,7 @@
                                 },
                                 {
                                     "spanID": "e7180322a4e695c9",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352324226,
                                     "duration": 1770,
                                     "tags": {
@@ -2031,7 +2031,7 @@
                                 },
                                 {
                                     "spanID": "0247145f4a814d53",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352336540,
                                     "duration": 1622,
                                     "tags": {
@@ -2065,7 +2065,7 @@
                                 },
                                 {
                                     "spanID": "ca24be4d56672017",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352338181,
                                     "duration": 1012,
                                     "tags": {
@@ -2126,7 +2126,7 @@
                                 },
                                 {
                                     "spanID": "fb5eb8662640211e",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352347788,
                                     "duration": 1528,
                                     "tags": {
@@ -2187,7 +2187,7 @@
                                 },
                                 {
                                     "spanID": "3d5d60bcbb0378eb",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352363161,
                                     "duration": 1665,
                                     "tags": {
@@ -2248,7 +2248,7 @@
                                 },
                                 {
                                     "spanID": "5419eefcd5e73e3f",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352374009,
                                     "duration": 1591,
                                     "tags": {
@@ -2309,7 +2309,7 @@
                                 },
                                 {
                                     "spanID": "f9ea2c64cc417e7c",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352383235,
                                     "duration": 1637,
                                     "tags": {
@@ -2370,7 +2370,7 @@
                                 },
                                 {
                                     "spanID": "bc18a40b55c7ed9d",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352397879,
                                     "duration": 1650,
                                     "tags": {
@@ -2431,7 +2431,7 @@
                                 },
                                 {
                                     "spanID": "a38d8afcfdd2ed7a",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352410965,
                                     "duration": 1655,
                                     "tags": {
@@ -2492,7 +2492,7 @@
                                 },
                                 {
                                     "spanID": "64d09913191b8adf",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352426569,
                                     "duration": 1636,
                                     "tags": {
@@ -2553,7 +2553,7 @@
                                 },
                                 {
                                     "spanID": "6c4c3935379deda1",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352445463,
                                     "duration": 1394,
                                     "tags": {
@@ -2587,7 +2587,7 @@
                                 },
                                 {
                                     "spanID": "42cb6d1dffc573d5",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352446875,
                                     "duration": 1028,
                                     "tags": {
@@ -2648,7 +2648,7 @@
                                 },
                                 {
                                     "spanID": "b3b68b57da54f267",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352463146,
                                     "duration": 1548,
                                     "tags": {
@@ -2709,7 +2709,7 @@
                                 },
                                 {
                                     "spanID": "350d278d41a8a6e1",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352478872,
                                     "duration": 1574,
                                     "tags": {
@@ -2770,7 +2770,7 @@
                                 },
                                 {
                                     "spanID": "60c6b3ed755a3ac1",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352494665,
                                     "duration": 1581,
                                     "tags": {
@@ -2831,7 +2831,7 @@
                                 },
                                 {
                                     "spanID": "67e98363905c053b",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352510019,
                                     "duration": 1599,
                                     "tags": {
@@ -2892,7 +2892,7 @@
                                 },
                                 {
                                     "spanID": "7f99d273d5627386",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352520788,
                                     "duration": 1680,
                                     "tags": {
@@ -2953,7 +2953,7 @@
                                 },
                                 {
                                     "spanID": "5718ada2027c013f",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352534000,
                                     "duration": 1737,
                                     "tags": {
@@ -3014,7 +3014,7 @@
                                 },
                                 {
                                     "spanID": "41c30359dfde2281",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352549261,
                                     "duration": 1630,
                                     "tags": {
@@ -3075,7 +3075,7 @@
                                 },
                                 {
                                     "spanID": "10fce97d786e30ef",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352561382,
                                     "duration": 1280,
                                     "tags": {
@@ -3109,7 +3109,7 @@
                                 },
                                 {
                                     "spanID": "0a1727f7ea5f24b6",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352562679,
                                     "duration": 1041,
                                     "tags": {
@@ -3170,7 +3170,7 @@
                                 },
                                 {
                                     "spanID": "2922fbd8dca5b353",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352580495,
                                     "duration": 1731,
                                     "tags": {
@@ -3231,7 +3231,7 @@
                                 },
                                 {
                                     "spanID": "809f292387a1798f",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352594216,
                                     "duration": 1552,
                                     "tags": {
@@ -3292,7 +3292,7 @@
                                 },
                                 {
                                     "spanID": "bf391fbb138c3460",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352606959,
                                     "duration": 1554,
                                     "tags": {
@@ -3353,7 +3353,7 @@
                                 },
                                 {
                                     "spanID": "7b72590bf8f8f071",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352619174,
                                     "duration": 1628,
                                     "tags": {
@@ -3414,7 +3414,7 @@
                                 },
                                 {
                                     "spanID": "a83023ab053e4b42",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352630897,
                                     "duration": 1626,
                                     "tags": {
@@ -3475,7 +3475,7 @@
                                 },
                                 {
                                     "spanID": "dc2151e17e56ac3d",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352638874,
                                     "duration": 1735,
                                     "tags": {
@@ -3536,7 +3536,7 @@
                                 },
                                 {
                                     "spanID": "a417956f29ee7f3d",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352647135,
                                     "duration": 1714,
                                     "tags": {
@@ -3597,7 +3597,7 @@
                                 },
                                 {
                                     "spanID": "6af944e07b38785b",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352655760,
                                     "duration": 1772,
                                     "tags": {
@@ -3658,7 +3658,7 @@
                                 },
                                 {
                                     "spanID": "fc98c279cf6f111c",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352665837,
                                     "duration": 1735,
                                     "tags": {
@@ -3719,7 +3719,7 @@
                                 },
                                 {
                                     "spanID": "26c00984c734bb05",
-                                    "operationName": "__process_adb_edge_type_df",
+                                    "operationName": "process_adb_edge_type_df",
                                     "startTime": 1705677352672594,
                                     "duration": 1221,
                                     "tags": {
