@@ -917,9 +917,9 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 np.array([from_n.to_numpy(), to_n.to_numpy()]), dtype=torch.int64
             )
 
-            empty_tensor = torch.tensor([], dtype=torch.int64)
+            empty_tensor = tensor([], dtype=torch.int64)
             existing_edge_index = edge_data.get("edge_index", empty_tensor)
-            edge_data.edge_index = torch.cat((existing_edge_index, edge_index), dim=1)
+            edge_data.edge_index = cat((existing_edge_index, edge_index), dim=1)
 
             # 7. Deal with invalid edges
             if torch.any(edge_data.edge_index == -1):
