@@ -5,6 +5,7 @@ from collections import defaultdict
 from math import ceil
 from typing import Any, Callable, DefaultDict, Dict, List, Optional, Set, Tuple, Union
 
+import numpy as np
 import torch
 from arango.cursor import Cursor
 from arango.database import StandardDatabase
@@ -912,7 +913,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             to_n = et_df["to_key"].map(adb_map[to_col]).fillna(-1).astype(int)
 
             # 6. Set/Update the PyG Edge Index
-            edge_index = tensor([from_n.tolist(), to_n.tolist()], dtype=torch.int64)
+            edge_index = tensor(
+                np.array([from_n.to_numpy(), to_n.to_numpy()]), dtype=torch.int64
+            )
+
             empty_tensor = torch.tensor([], dtype=torch.int64)
             existing_edge_index = edge_data.get("edge_index", empty_tensor)
             edge_data.edge_index = torch.cat((existing_edge_index, edge_index), dim=1)
