@@ -1,3 +1,48 @@
+## 1.1.3 (2024-02-09)
+
+### Fix
+
+* `edge_index.dtype` is `float` (#31) [Anthony Mahanna]
+
+  * add `edge_index.dtype` assertions
+
+  (tests should fail)
+
+  * fix: `edge_index.dtype` to `int`
+
+  * fix: `edge_index` creation
+
+  * cleanup
+
+### Other
+
+* Update Build Distribution Command (#27) [Anthony Mahanna]
+
+  initial commit
+
+* Misc: update download badge. [Anthony Mahanna]
+
+* Migrate to `pyproject.toml` (#25) [Anthony Mahanna]
+
+  * initial commit
+
+  * lint cleanup
+
+  * workflow cleanup
+
+  * disable 3.12
+
+  * fix lint
+
+  * lock `torch` in workflow
+
+* Update README.md. [Anthony Mahanna]
+
+* Changelog: release 1.1.2 (#24) [github-actions[bot]]
+
+  !gitchangelog
+
+
 ## 1.1.2 (2023-10-25)
 
 ### Other
