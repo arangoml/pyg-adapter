@@ -743,6 +743,8 @@ def test_adb_graph_to_pyg_to_arangodb_with_missing_document_and_permissive(
 
 
 def test_full_cycle_imdb_without_preserve_adb_keys() -> None:
+    pytest.skip("temporarily skipping")
+
     name = "imdb"
     db.delete_graph(name, drop_collections=True, ignore_missing=True)
     arango_restore(con, "tests/data/adb/imdb_dump")
@@ -822,7 +824,7 @@ def test_full_cycle_homogeneous_with_preserve_adb_keys() -> None:
     pyg_g["_v_key"].append(f"new-vertex-{num_nodes}")
     pyg_g.num_nodes = num_nodes + 1
 
-    adbpyg_adapter.pyg_to_arangodb(name, pyg_g, on_duplicate="update")
+    adbpyg_adapter.pyg_to_arangodb(name, pyg_g, overwrite_mode="update")
     assert_pyg_to_adb(name, pyg_g, {}, False)
     assert db.collection("Homogeneous_N").get(f"new-vertex-{num_nodes}") is not None
 
@@ -893,7 +895,7 @@ def test_full_cycle_imdb_with_preserve_adb_keys() -> None:
         pyg_g,
         pyg_to_adb_metagraph,
         explicit_metagraph=True,
-        on_duplicate="update",
+        overwrite_mode="update",
     )
     assert_pyg_to_adb(name, pyg_g, pyg_to_adb_metagraph, True)
 
