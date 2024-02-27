@@ -1819,7 +1819,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         docs = df.to_dict("records")
         db = self.__async_db if use_async else self.__db
-        result = db.collection(col).insert_many(docs, **adb_import_kwargs)
+        result = db.collection(col).import_bulk(docs, **adb_import_kwargs)
         logger.debug(result)
 
         df.drop(df.index, inplace=True)
