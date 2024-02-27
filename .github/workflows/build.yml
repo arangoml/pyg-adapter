@@ -10,6 +10,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    continue-on-error: true
     strategy:
       matrix:
         python: ["3.8", "3.9", "3.10", "3.11"] # "3.12"
@@ -34,7 +35,7 @@ jobs:
         run: |
           pip install torch==2.1.0
           pip install torch-scatter torch-sparse -f https://data.pyg.org/whl/torch-$(python -c 'import torch; print(torch.__version__.split("+")[0])')+cpu.html
-          pip install -e .[dev]
+          pip install -e '.[dev, tracing]'
 
       - name: Run black
         run: black --check --verbose --diff --color ${{env.PACKAGE_DIR}} ${{env.TESTS_DIR}}

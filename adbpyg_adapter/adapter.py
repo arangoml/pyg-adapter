@@ -13,7 +13,7 @@ from arango.graph import Graph as ADBGraph
 from pandas import DataFrame, Series
 from rich.console import Group
 from rich.live import Live
-from rich.progress import Progress
+from rich.progress import Progress, TaskID
 from torch import Tensor, cat, tensor
 from torch_geometric.data import Data, HeteroData
 from torch_geometric.data.storage import EdgeStorage, NodeStorage
@@ -22,6 +22,12 @@ from torch_geometric.typing import EdgeType
 from .abc import Abstract_ADBPyG_Adapter
 from .controller import ADBPyG_Controller
 from .exceptions import ADBMetagraphError, InvalidADBEdgesError, PyGMetagraphError
+from .tracing import (
+    TRACING_ENABLED,
+    TracingManager,
+    start_as_current_span,
+    with_tracing,
+)
 from .typings import (
     ADBMap,
     ADBMetagraph,
@@ -40,6 +46,9 @@ from .utils import (
     validate_pyg_metagraph,
 )
 
+if TRACING_ENABLED:
+    from opentelemetry.trace import Tracer
+
 
 class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
     """ArangoDB-PyG adapter.
@@ -53,6 +62,11 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
     :param logging_lvl: Defaults to logging.INFO. Other useful options are
         logging.DEBUG (more verbose), and logging.WARNING (less verbose).
     :type logging_lvl: str | int
+    :param tracer: The OpenTelemetry tracer instance. Requires the `tracing`
+        extra to be installed (i.e `pip install adbpyg-adapter[tracing]`).
+        See `adbpyg_adapter.tracing.create_tracer` for details on how to
+        create a tracer instance.
+    :type tracer: opentelemetry.trace.Tracer
     :raise TypeError: If invalid parameter types
     """
 
@@ -61,8 +75,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         db: StandardDatabase,
         controller: ADBPyG_Controller = ADBPyG_Controller(),
         logging_lvl: Union[str, int] = logging.INFO,
+        tracer: Optional["Tracer"] = None,
     ):
         self.set_logging(logging_lvl)
+        self.set_tracer(tracer)
 
         if not isinstance(db, StandardDatabase):
             msg = "**db** parameter must inherit from arango.database.StandardDatabase"
@@ -87,12 +103,31 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         return self.__cntrl  # pragma: no cover
 
     def set_logging(self, level: Union[int, str]) -> None:
+        """Set the logging level for the adapter instance.
+
+        :param level: The logging level (i.e logging.INFO, logging.DEBUG, etc.)
+        :type level: str | int
+        """
         logger.setLevel(level)
+
+    def set_tracer(self, tracer: Optional["Tracer"]) -> None:
+        """Set the OpenTelemetry tracer for the adapter instance. Requires
+        the `tracing` extra to be installed (i.e `pip install adbpyg-adapter[tracing]`).
+
+        :param tracer: The OpenTelemetry tracer instance. See
+            `adbpyg_adapter.tracing.create_tracer` for details on how to
+            create a tracer instance.
+        :type tracer: opentelemetry.trace.Tracer
+        :raise ImportError: If OpenTelemetry is not installed.
+        """
+        if TRACING_ENABLED:
+            TracingManager.set_tracer(tracer)
 
     ###########################
     # Public: ArangoDB -> PyG #
     ###########################
 
+    @with_tracing()
     def arangodb_to_pyg(
         self,
         name: str,
@@ -260,6 +295,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         build a PyG-ready Tensor from a DataFrame equivalent to the
         associated ArangoDB collection.
         """
+        TracingManager.set_attributes(name=name)
         logger.debug(f"--arangodb_to_pyg('{name}')--")
 
         validate_adb_metagraph(metagraph)
@@ -293,22 +329,13 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             if preserve_key is not None:
                 node_data[preserve_key] = []
 
-            # 1. Fetch ArangoDB vertices
-            v_col_cursor, v_col_size = self.__fetch_adb_docs(
-                v_col, meta, **adb_export_kwargs
-            )
-
-            # 2. Process ArangoDB vertices
-            self.__process_adb_cursor(
-                "#8929C2",
-                v_col_cursor,
-                v_col_size,
-                self.__process_adb_vertex_df,
+            self.__process_adb_v_col(
                 v_col,
-                adb_map,
                 meta,
+                adb_export_kwargs,
+                adb_map,
                 preserve_key,
-                node_data=node_data,
+                node_data,
             )
 
         ####################
@@ -322,30 +349,22 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         for e_col, meta in metagraph.get("edgeCollections", {}).items():
             logger.debug(f"Preparing '{e_col}' edges")
 
-            # 1. Fetch ArangoDB edges
-            e_col_cursor, e_col_size = self.__fetch_adb_docs(
-                e_col, meta, **adb_export_kwargs
-            )
-
-            # 2. Process ArangoDB edges
-            self.__process_adb_cursor(
-                "#40A6F5",
-                e_col_cursor,
-                e_col_size,
-                self.__process_adb_edge_df,
+            self.__process_adb_e_col(
                 e_col,
-                adb_map,
                 meta,
+                adb_export_kwargs,
+                adb_map,
                 preserve_key,
-                data=data,
-                v_cols=v_cols,
-                strict=strict,
-                is_homogeneous=is_homogeneous,
+                data,
+                v_cols,
+                strict,
+                is_homogeneous,
             )
 
         logger.info(f"Created PyG '{name}' Graph")
         return data
 
+    @with_tracing()
     def arangodb_collections_to_pyg(
         self,
         name: str,
@@ -399,6 +418,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             name, metagraph, preserve_adb_keys, strict, **adb_export_kwargs
         )
 
+    @with_tracing()
     def arangodb_graph_to_pyg(
         self,
         name: str,
@@ -450,6 +470,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
     # Public: PyG -> ArangoDB #
     ###########################
 
+    @with_tracing()
     def pyg_to_arangodb(
         self,
         name: str,
@@ -549,6 +570,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         4) Dissasembles the 2-feature Tensor into two ArangoDB attributes,
             where each attribute holds one feature value.
         """
+        TracingManager.set_attributes(name=name)
         logger.debug(f"--pyg_to_arangodb('{name}')--")
 
         validate_pyg_metagraph(metagraph)
@@ -584,6 +606,10 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         node_data: NodeStorage
         edge_data: EdgeStorage
 
+        # Define PyG Batch Processing Functions
+        process_node_batch_fn: Callable[[int, int], DataFrame]
+        process_edge_batch_fn: Callable[[int, int], DataFrame]
+
         spinner_progress = get_import_spinner_progress("    ")
 
         #############
@@ -595,41 +621,35 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             meta = n_meta.get(n_type, {})
 
             node_data = pyg_g if is_homogeneous else pyg_g[n_type]
-            node_data_batch_size = batch_size or node_data.num_nodes
-
-            start_index = 0
-            end_index = min(node_data_batch_size, node_data.num_nodes)
-            batches = ceil(node_data.num_nodes / node_data_batch_size)
 
             bar_progress = get_bar_progress(f"(PyG → ADB): '{n_type}'", "#97C423")
             bar_progress_task = bar_progress.add_task(n_type, total=node_data.num_nodes)
 
+            process_node_batch_fn = (
+                lambda start_index, end_index: self.__process_pyg_node_batch(
+                    n_type,
+                    node_data,
+                    meta,
+                    pyg_map,
+                    is_explicit_metagraph,
+                    is_custom_controller,
+                    start_index,
+                    end_index,
+                )
+            )
+
             with Live(Group(bar_progress, spinner_progress)):
-                for _ in range(batches):
-                    # 1. Process the Node batch
-                    df = self.__process_pyg_node_batch(
-                        n_type,
-                        node_data,
-                        meta,
-                        pyg_map,
-                        is_explicit_metagraph,
-                        is_custom_controller,
-                        start_index,
-                        end_index,
-                    )
-
-                    bar_progress.advance(bar_progress_task, advance=len(df))
-
-                    # 2. Insert the ArangoDB Node Documents
-                    self.__insert_adb_docs(
-                        spinner_progress, df, n_type, use_async, **adb_import_kwargs
-                    )
-
-                    # 3. Update the batch indices
-                    start_index = end_index
-                    end_index = min(
-                        end_index + node_data_batch_size, node_data.num_nodes
-                    )
+                self.__process_pyg_n_type(
+                    n_type,
+                    node_data.num_nodes,
+                    batch_size or node_data.num_nodes,
+                    process_node_batch_fn,
+                    bar_progress,
+                    bar_progress_task,
+                    spinner_progress,
+                    use_async,
+                    adb_import_kwargs,
+                )
 
         #############
         # PyG Edges #
@@ -640,41 +660,35 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             meta = e_meta.get(e_type, {})
 
             edge_data = pyg_g if is_homogeneous else pyg_g[e_type]
-            edge_data_batch_size = batch_size or edge_data.num_edges
-
-            start_index = 0
-            end_index = min(edge_data_batch_size, edge_data.num_edges)
-            batches = ceil(edge_data.num_edges / edge_data_batch_size)
 
             bar_progress = get_bar_progress(f"(PyG → ADB): {e_type}", "#994602")
             bar_progress_task = bar_progress.add_task(e_type, total=edge_data.num_edges)
 
+            process_edge_batch_fn = (
+                lambda start_index, end_index: self.__process_pyg_edge_batch(
+                    e_type,
+                    edge_data,
+                    meta,
+                    pyg_map,
+                    is_explicit_metagraph,
+                    is_custom_controller,
+                    start_index,
+                    end_index,
+                )
+            )
+
             with Live(Group(bar_progress, spinner_progress)):
-                for _ in range(batches):
-                    # 1. Process the Edge batch
-                    df = self.__process_pyg_edge_batch(
-                        e_type,
-                        edge_data,
-                        meta,
-                        pyg_map,
-                        is_explicit_metagraph,
-                        is_custom_controller,
-                        start_index,
-                        end_index,
-                    )
-
-                    bar_progress.advance(bar_progress_task, advance=len(df))
-
-                    # 2. Insert the ArangoDB Edge Documents
-                    self.__insert_adb_docs(
-                        spinner_progress, df, e_type[1], use_async, **adb_import_kwargs
-                    )
-
-                    # 3. Update the batch indices
-                    start_index = end_index
-                    end_index = min(
-                        end_index + edge_data_batch_size, edge_data.num_edges
-                    )
+                self.__process_pyg_e_type(
+                    e_type,
+                    edge_data.num_edges,
+                    batch_size or edge_data.num_edges,
+                    process_edge_batch_fn,
+                    bar_progress,
+                    bar_progress_task,
+                    spinner_progress,
+                    use_async,
+                    adb_import_kwargs,
+                )
 
         logger.info(f"Created ArangoDB '{name}' Graph")
         return adb_graph
@@ -683,9 +697,116 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
     # Private: ArangoDB -> PyG #
     ############################
 
+    @with_tracing("process_adb_vertex_collection")
+    def __process_adb_v_col(
+        self,
+        v_col: str,
+        meta: Union[Set[str], Dict[str, ADBMetagraphValues]],
+        adb_export_kwargs: Dict[str, Any],
+        adb_map: ADBMap,
+        preserve_key: Optional[str],
+        node_data: NodeStorage,
+    ) -> None:
+        """ArangoDB -> PyG: Processes the ArangoDB Vertex Collection.
+
+        :param v_col: The ArangoDB vertex collection.
+        :type v_col: str
+        :param meta: The metagraph for the current **v_col**.
+        :type meta: Set[str] | Dict[str, ADBMetagraphValues]
+        :param adb_export_kwargs: Keyword arguments to specify AQL query options
+            when fetching documents from the ArangoDB instance.
+        :type adb_export_kwargs: Dict[str, Any]
+        :param adb_map: The ArangoDB -> PyG map.
+        :type adb_map: adbpyg_adapter.typings.ADBMap
+        :param preserve_key: The PyG key to preserve the ArangoDB _key values.
+        :type preserve_key: Optional[str]
+        :param node_data: The PyG NodeStorage object.
+        :type node_data: torch_geometric.data.storage.NodeStorage
+        """
+        TracingManager.set_attributes(v_col=v_col)
+
+        # 1. Fetch ArangoDB vertices
+        v_col_cursor, v_col_size = self.__fetch_adb_docs(
+            v_col, False, meta, **adb_export_kwargs
+        )
+
+        # 2. Process ArangoDB vertices
+        self.__process_adb_cursor(
+            "#8929C2",
+            v_col_cursor,
+            v_col_size,
+            self.__process_adb_vertex_df,
+            v_col,
+            adb_map,
+            meta,
+            preserve_key,
+            node_data=node_data,
+        )
+
+    @with_tracing("process_adb_edge_collection")
+    def __process_adb_e_col(
+        self,
+        e_col: str,
+        meta: Union[Set[str], Dict[str, ADBMetagraphValues]],
+        adb_export_kwargs: Dict[str, Any],
+        adb_map: ADBMap,
+        preserve_key: Optional[str],
+        data: Union[Data, HeteroData],
+        v_cols: List[str],
+        strict: bool,
+        is_homogeneous: bool,
+    ) -> None:
+        """ArangoDB -> PyG: Processes the ArangoDB Edge Collection.
+
+        :param e_col: The ArangoDB edge collection.
+        :type e_col: str
+        :param meta: The metagraph for the current **e_col**.
+        :type meta: Set[str] | Dict[str, ADBMetagraphValues]
+        :param adb_export_kwargs: Keyword arguments to specify AQL query options
+            when fetching documents from the ArangoDB instance.
+        :type adb_export_kwargs: Dict[str, Any]
+        :param adb_map: The ArangoDB -> PyG map.
+        :type adb_map: adbpyg_adapter.typings.ADBMap
+        :param preserve_key: The PyG key to preserve the ArangoDB _key values.
+        :type preserve_key: Optional[str]
+        :param data: The PyG Data or HeteroData object.
+        :type data: torch_geometric.data.Data | torch_geometric.data.HeteroData
+        :param v_cols: The list of ArangoDB vertex collections.
+        :type v_cols: List[str]
+        :param strict: Set fault tolerance when loading a graph from ArangoDB. If set
+            to false, this will ignore invalid edges (e.g. dangling/half edges).
+        :type strict: bool
+        :param is_homogeneous: Whether the ArangoDB graph is homogeneous or not.
+        :type is_homogeneous: bool
+        """
+        TracingManager.set_attributes(e_col=e_col)
+
+        # 1. Fetch ArangoDB edges
+        e_col_cursor, e_col_size = self.__fetch_adb_docs(
+            e_col, True, meta, **adb_export_kwargs
+        )
+
+        # 2. Process ArangoDB edges
+        self.__process_adb_cursor(
+            "#40A6F5",
+            e_col_cursor,
+            e_col_size,
+            self.__process_adb_edge_df,
+            e_col,
+            adb_map,
+            meta,
+            preserve_key,
+            data=data,
+            v_cols=v_cols,
+            strict=strict,
+            is_homogeneous=is_homogeneous,
+        )
+
+    @with_tracing("fetch_adb_documents")
     def __fetch_adb_docs(
         self,
         col: str,
+        is_edge: bool,
         meta: Union[Set[str], Dict[str, ADBMetagraphValues]],
         **adb_export_kwargs: Any,
     ) -> Tuple[Cursor, int]:
@@ -694,6 +815,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         :param col: The ArangoDB collection.
         :type col: str
+        :param is_edge: True if **col** is an edge collection.
+        :type is_edge: bool
         :param meta: The MetaGraph associated to **col**
         :type meta: Set[str] | Dict[str, adbpyg_adapter.typings.ADBMetagraphValues]
         :param adb_export_kwargs: Keyword arguments to specify AQL query options
@@ -703,48 +826,44 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :rtype: pandas.DataFrame
         """
 
-        def get_aql_return_value(
-            meta: Union[Set[str], Dict[str, ADBMetagraphValues]]
-        ) -> str:
+        def get_aql_return_value() -> str:
             """Helper method to formulate the AQL `RETURN` value based on
             the document attributes specified in **meta**
             """
-            attributes = []
+            attributes = ["_key"]
+            attributes += ["_from", "_to"] if is_edge else []
 
             if type(meta) is set:
-                attributes = list(meta)
+                attributes += list(meta)
 
             elif type(meta) is dict:
                 for value in meta.values():
                     if type(value) is str:
                         attributes.append(value)
                     elif type(value) is dict:
-                        attributes.extend(list(value.keys()))
+                        attributes += list(value.keys())
                     elif callable(value):
                         # Cannot determine which attributes to extract if UDFs are used
                         # Therefore we just return the entire document
                         return "doc"
 
-            return f"""
-                MERGE(
-                    {{ _key: doc._key, _from: doc._from, _to: doc._to }},
-                    KEEP(doc, {list(attributes)})
-                )
-            """
+            return f"KEEP(doc, {attributes})"
 
         col_size: int = self.__db.collection(col).count()
+        TracingManager.set_attributes(col=col, col_size=col_size, meta=meta)
 
         with get_export_spinner_progress(f"ADB Export: '{col}' ({col_size})") as p:
             p.add_task(col)
 
             cursor: Cursor = self.__db.aql.execute(
-                f"FOR doc IN @@col RETURN {get_aql_return_value(meta)}",
+                f"FOR doc IN @@col RETURN {get_aql_return_value()}",
                 bind_vars={"@col": col},
-                **{**adb_export_kwargs, **{"stream": True}},
+                **{**adb_export_kwargs, "stream": True},
             )
 
             return cursor, col_size
 
+    @with_tracing("process_adb_cursor")
     def __process_adb_cursor(
         self,
         progress_color: str,
@@ -783,20 +902,19 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         progress = get_bar_progress(f"(ADB → PyG): '{col}'", progress_color)
         progress_task_id = progress.add_task(col, total=col_size)
 
+        i = 0
         with Live(Group(progress)):
-            i = 0
             while not cursor.empty():
-                cursor_batch = len(cursor.batch())
-                df = DataFrame([cursor.pop() for _ in range(cursor_batch)])
+                df = DataFrame(cursor.batch())
+                cursor.batch().clear()
 
                 i = process_adb_df(i, df, col, adb_map, meta, preserve_key, **kwargs)
                 progress.advance(progress_task_id, advance=len(df))
 
-                df.drop(df.index, inplace=True)
-
                 if cursor.has_more():
                     cursor.fetch()
 
+    @with_tracing("process_adb_vertex_dataframe")
     def __process_adb_vertex_df(
         self,
         i: int,
@@ -827,6 +945,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :return: The last PyG Node id value.
         :rtype: int
         """
+        TracingManager.set_attributes(i=i, vertex_df_size=len(df))
+
         # 1. Map each ArangoDB _key to a PyG node id
         for adb_key in df["_key"]:
             adb_map[v_col][adb_key] = i
@@ -841,6 +961,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         return i
 
+    @with_tracing("process_adb_edge_dataframe")
     def __process_adb_edge_df(
         self,
         _: int,
@@ -881,6 +1002,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             but is needed for type hinting.
         :rtype: int
         """
+        TracingManager.set_attributes(edge_df_size=len(df))
+
         # 1. Split the ArangoDB _from & _to IDs into two columns
         df[["from_col", "from_key"]] = self.__split_adb_ids(df["_from"])
         df[["to_col", "to_key"]] = self.__split_adb_ids(df["_to"])
@@ -890,60 +1013,67 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             df[["from_col", "to_col"]].value_counts().items()
         ):
             edge_type = (from_col, e_col, to_col)
-            edge_data: EdgeStorage = data if is_homogeneous else data[edge_type]
 
-            # 3. Check for partial Edge Collection import
-            if from_col not in v_cols or to_col not in v_cols:
-                logger.debug(f"Skipping {edge_type}")
-                continue
+            with start_as_current_span("process_adb_edge_type_df"):
+                TracingManager.set_attributes(
+                    edge_type=edge_type, edge_type_df_size=count
+                )
 
-            logger.debug(f"Preparing {count} {edge_type} edges")
+                # 3. Check for partial Edge Collection import
+                if from_col not in v_cols or to_col not in v_cols:
+                    logger.debug(f"Skipping {edge_type}")
+                    TracingManager.set_attributes(skipped=True)
+                    continue
 
-            # 4. Get the edge data corresponding to the current edge type
-            et_df: DataFrame = df[
-                (df["from_col"] == from_col) & (df["to_col"] == to_col)
-            ]
+                logger.debug(f"Preparing {count} {edge_type} edges")
 
-            # 5. Map each ArangoDB from/to _key to the corresponding PyG node id
-            # NOTE: map() is somehow converting int values to float...
-            # So we rely on astype(int) to convert the float back to int,
-            # but we also fill NaN values with -1 so that we can convert
-            # the entire column to int without any issues. Need to revisit...
-            from_n = et_df["from_key"].map(adb_map[from_col]).fillna(-1).astype(int)
-            to_n = et_df["to_key"].map(adb_map[to_col]).fillna(-1).astype(int)
+                # 4. Get the edge data corresponding to the current edge type
+                et_df: DataFrame = df[
+                    (df["from_col"] == from_col) & (df["to_col"] == to_col)
+                ]
 
-            # 6. Set/Update the PyG Edge Index
-            edge_index = tensor(
-                np.array([from_n.to_numpy(), to_n.to_numpy()]), dtype=torch.int64
-            )
+                # 5. Map each ArangoDB from/to _key to the corresponding PyG node id
+                # NOTE: map() is somehow converting int values to float...
+                # So we rely on astype(int) to convert the float back to int,
+                # but we also fill NaN values with -1 so that we can convert
+                # the entire column to int without any issues. Need to revisit...
+                from_n = et_df["from_key"].map(adb_map[from_col]).fillna(-1).astype(int)
+                to_n = et_df["to_key"].map(adb_map[to_col]).fillna(-1).astype(int)
 
-            empty_tensor = tensor([], dtype=torch.int64)
-            existing_edge_index = edge_data.get("edge_index", empty_tensor)
-            edge_data.edge_index = cat((existing_edge_index, edge_index), dim=1)
+                # 6. Set/Update the PyG Edge Index
+                edge_data: EdgeStorage = data if is_homogeneous else data[edge_type]
+                empty_tensor = tensor([], dtype=torch.int64)
+                existing_edge_index = edge_data.get("edge_index", empty_tensor)
+                new_edge_index = tensor(
+                    np.array([from_n.to_numpy(), to_n.to_numpy()]), dtype=torch.int64
+                )
 
-            # 7. Deal with invalid edges
-            if torch.any(edge_data.edge_index == -1):
-                if strict:
-                    m = f"Invalid edges found in Edge Collection {e_col}, {from_col} -> {to_col}."  # noqa: E501
-                    raise InvalidADBEdgesError(m)
-                else:
-                    # Remove the invalid edges
-                    edge_data.edge_index = edge_data.edge_index[
-                        :, ~torch.any(edge_data.edge_index == -1, dim=0)
-                    ]
+                edge_data.edge_index = cat((existing_edge_index, new_edge_index), dim=1)
 
-            # 8. Set the PyG Edge Data
-            self.__set_pyg_data(meta, edge_data, et_df)
+                # 7. Deal with invalid edges
+                if torch.any(edge_data.edge_index == -1):
+                    if strict:
+                        m = f"Invalid edges found in Edge Collection {e_col}, {from_col} -> {to_col}."  # noqa: E501
+                        raise InvalidADBEdgesError(m)
+                    else:
+                        # Remove the invalid edges
+                        edge_data.edge_index = edge_data.edge_index[
+                            :, ~torch.any(edge_data.edge_index == -1, dim=0)
+                        ]
 
-            # 9. Maintain the ArangoDB _key values
-            if preserve_key is not None:
-                if preserve_key not in edge_data:
-                    edge_data[preserve_key] = []
+                # 8. Set the PyG Edge Data
+                self.__set_pyg_data(meta, edge_data, et_df)
 
-                edge_data[preserve_key].extend(list(et_df["_key"]))
+                # 9. Maintain the ArangoDB _key values
+                if preserve_key is not None:
+                    if preserve_key not in edge_data:
+                        edge_data[preserve_key] = []
+
+                    edge_data[preserve_key].extend(list(et_df["_key"]))
 
         return 1  # Useless return value, but needed for type hinting
 
+    @with_tracing("split_adb_ids")
     def __split_adb_ids(self, s: Series) -> Series:
         """AranogDB -> PyG: Helper method to split the ArangoDB IDs
         within a Series into two columns
@@ -956,6 +1086,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         """
         return s.str.split(pat="/", n=1, expand=True)
 
+    @with_tracing("set_pyg_data")
     def __set_pyg_data(
         self,
         meta: Union[Set[str], Dict[str, ADBMetagraphValues]],
@@ -978,6 +1109,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         """
         valid_meta: Dict[str, ADBMetagraphValues]
         valid_meta = meta if type(meta) is dict else {m: m for m in meta}
+        TracingManager.set_attributes(meta=valid_meta)
 
         for k, v in valid_meta.items():
             t = self.__build_tensor_from_dataframe(df, k, v)
@@ -990,6 +1122,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
                 m = f"'{k}' key in PyG Data must point to a Tensor"
                 raise TypeError(m)
 
+    @with_tracing("build_tensor_from_dataframe")
     def __build_tensor_from_dataframe(
         self,
         adb_df: DataFrame,
@@ -1011,8 +1144,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :rtype: torch.Tensor
         :raise adbpyg_adapter.exceptions.ADBMetagraphError: If invalid **meta_val**.
         """
-        m = f"__build_tensor_from_dataframe(df, '{meta_key}', {type(meta_val)})"
-        logger.debug(m)
+        TracingManager.set_attributes(meta_key=meta_key, meta_val=meta_val)
+        logger.debug(f"__build_tensor_from_dataframe(df, {meta_key}, {str(meta_val)})")
 
         if type(meta_val) is str:
             return tensor(adb_df[meta_val].to_list())
@@ -1046,6 +1179,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
     # Private: PyG -> ArangoDB #
     ############################
 
+    @with_tracing("get_node_and_edge_types")
     def __get_node_and_edge_types(
         self,
         name: str,
@@ -1089,6 +1223,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         return node_types, edge_types
 
+    @with_tracing("edge_types_to_edge_definitions")
     def __etypes_to_edefinitions(self, edge_types: List[EdgeType]) -> List[Json]:
         """PyG -> ArangoDB: Converts PyG edge_types to ArangoDB edge_definitions
 
@@ -1133,6 +1268,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         return edge_definitions
 
+    @with_tracing("node_types_to_orphan_collections")
     def __ntypes_to_ocollections(
         self, node_types: List[str], edge_types: List[EdgeType]
     ) -> List[str]:
@@ -1156,6 +1292,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         orphan_collections = set(node_types) ^ non_orphan_collections
         return list(orphan_collections)
 
+    @with_tracing("create_adb_graph")
     def __create_adb_graph(
         self,
         name: str,
@@ -1194,6 +1331,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             orphan_collections,
         )
 
+    @with_tracing("process_pyg_node_batch")
     def __process_pyg_node_batch(
         self,
         n_type: str,
@@ -1227,6 +1365,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :return: The ArangoDB DataFrame representing the PyG Node batch.
         :rtype: pandas.DataFrame
         """
+        TracingManager.set_attributes(start_index=start_index, end_index=end_index)
+
         # 1. Set the ArangoDB Node Data
         df = self.__set_adb_data(
             DataFrame(index=range(start_index, end_index)),
@@ -1251,6 +1391,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         return df
 
+    @with_tracing("process_pyg_edge_batch")
     def __process_pyg_edge_batch(
         self,
         e_type: EdgeType,
@@ -1284,6 +1425,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :return: The ArangoDB DataFrame representing the PyG Edge batch.
         :rtype: pandas.DataFrame
         """
+        TracingManager.set_attributes(start_index=start_index, end_index=end_index)
+
         src_n_type, _, dst_n_type = e_type
 
         # 1. Fetch the Edge Index of the current batch
@@ -1324,6 +1467,165 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         return df
 
+    @with_tracing("process_pyg_node_type")
+    def __process_pyg_n_type(
+        self,
+        n_type: str,
+        node_data_total_size: int,
+        node_data_batch_size: int,
+        process_node_batch_fn: Callable[..., DataFrame],
+        bar_progress: Progress,
+        bar_progress_task: TaskID,
+        spinner_progress: Progress,
+        use_async: bool,
+        adb_import_kwargs: Dict[str, Any],
+    ) -> None:
+        """PyG -> ArangoDB: Processes a PyG Node type. A simple wrapper
+        around the __process_batches method in order to set the tracer
+        attributes accordingly, and to provide a more descriptive
+        tracer span name.
+
+        :param n_type: The PyG node type.
+        :type n_type: str
+        :param node_data_total_size: The total size of the PyG NodeStorage object.
+        :type node_data_total_size: int
+        :param node_data_batch_size: The batch size of the PyG NodeStorage object.
+        :type node_data_batch_size: int
+        :param process_node_batch_fn: The function to process the PyG Node batch.
+        :type process_node_batch_fn: Callable
+        :param bar_progress: The progress bar.
+        :type bar_progress: Progress
+        :param bar_progress_task: The progress bar task ID.
+        :type bar_progress_task: TaskID
+        :param spinner_progress: The spinner progress bar.
+        :type spinner_progress: Progress
+        :param use_async: Whether to use asynchronous insertion.
+        :type use_async: bool
+        :param adb_import_kwargs: Keyword arguments to specify import options
+            when inserting documents into the ArangoDB instance.
+        :type adb_import_kwargs: Dict[str, Any]
+        """
+        TracingManager.set_attributes(n_type=n_type, n_type_size=node_data_total_size)
+
+        self.__process_batches(
+            n_type,
+            node_data_total_size,
+            node_data_batch_size,
+            process_node_batch_fn,
+            bar_progress,
+            bar_progress_task,
+            spinner_progress,
+            use_async,
+            adb_import_kwargs,
+        )
+
+    @with_tracing("process_pyg_edge_type")
+    def __process_pyg_e_type(
+        self,
+        e_type: EdgeType,
+        edge_data_total_size: int,
+        edge_data_batch_size: int,
+        process_edge_batch_fn: Callable[..., DataFrame],
+        bar_progress: Progress,
+        bar_progress_task: TaskID,
+        spinner_progress: Progress,
+        use_async: bool,
+        adb_import_kwargs: Dict[str, Any],
+    ) -> None:
+        """PyG -> ArangoDB: Processes a PyG Edge type. A simple wrapper
+        around the __process_batches method in order to set the tracer
+        attributes accordingly, and to provide a more descriptive
+        tracer span name.
+
+        :param e_type: The PyG edge type.
+        :type e_type: torch_geometric.typing.EdgeType
+        :param edge_data_total_size: The total size of the PyG EdgeStorage object.
+        :type edge_data_total_size: int
+        :param edge_data_batch_size: The batch size of the PyG EdgeStorage object.
+        :type edge_data_batch_size: int
+        :param process_edge_batch_fn: The function to process the PyG Edge batch.
+        :type process_edge_batch_fn: Callable
+        :param bar_progress: The progress bar.
+        :type bar_progress: Progress
+        :param bar_progress_task: The progress bar task ID.
+        :type bar_progress_task: TaskID
+        :param spinner_progress: The spinner progress bar.
+        :type spinner_progress: Progress
+        :param use_async: Whether to use asynchronous insertion.
+        :type use_async: bool
+        :param adb_import_kwargs: Keyword arguments to specify import options
+            when inserting documents into the ArangoDB instance.
+        :type adb_import_kwargs: Dict[str, Any]
+        """
+        TracingManager.set_attributes(e_type=e_type, e_type_size=edge_data_total_size)
+
+        self.__process_batches(
+            e_type[1],
+            edge_data_total_size,
+            edge_data_batch_size,
+            process_edge_batch_fn,
+            bar_progress,
+            bar_progress_task,
+            spinner_progress,
+            use_async,
+            adb_import_kwargs,
+        )
+
+    def __process_batches(
+        self,
+        col: str,
+        total_size: int,
+        batch_size: int,
+        process_batch_fn: Callable[..., DataFrame],
+        bar_progress: Progress,
+        bar_progress_task: TaskID,
+        spinner_progress: Progress,
+        use_async: bool,
+        adb_import_kwargs: Dict[str, Any],
+    ) -> None:
+        """PyG -> ArangoDB: Processes the PyG Node or Edge batches. No tracing
+        decorator required here.
+
+        :param col: The ArangoDB collection name.
+        :type col: str
+        :param total_size: The total size of the PyG NodeStorage or EdgeStorage object.
+        :type total_size: int
+        :param batch_size: The batch size of the PyG NodeStorage or EdgeStorage object.
+        :type batch_size: int
+        :param process_batch_fn: The function to process the PyG Node or Edge batch.
+        :type process_batch_fn: Callable
+        :param bar_progress: The progress bar.
+        :type bar_progress: Progress
+        :param bar_progress_task: The progress bar task ID.
+        :type bar_progress_task: TaskID
+        :param spinner_progress: The spinner progress bar.
+        :type spinner_progress: Progress
+        :param use_async: Whether to use asynchronous insertion.
+        :type use_async: bool
+        :param adb_import_kwargs: Keyword arguments to specify import options
+            when inserting documents into the ArangoDB instance.
+        :type adb_import_kwargs: Dict[str, Any]
+        """
+        start_index = 0
+        end_index = min(batch_size, total_size)
+        batches = ceil(total_size / batch_size)
+
+        for _ in range(batches):
+            # 1. Process the batch
+            df = process_batch_fn(start_index, end_index)
+
+            bar_progress.advance(bar_progress_task, advance=len(df))
+
+            # 2. Insert the ArangoDB Documents
+            self.__insert_adb_docs(
+                spinner_progress, df, col, use_async, **adb_import_kwargs
+            )
+
+            # 3. Update the batch indices
+            start_index = end_index
+            end_index = min(end_index + batch_size, total_size)
+
+    @with_tracing("set_adb_data")
     def __set_adb_data(
         self,
         df: DataFrame,
@@ -1369,6 +1671,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         valid_meta: Dict[Any, PyGMetagraphValues]
         valid_meta = meta if type(meta) is dict else {m: m for m in meta}
+        TracingManager.set_attributes(meta=valid_meta)
 
         pyg_keys = (
             set(valid_meta.keys())
@@ -1381,15 +1684,21 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             data = pyg_data[meta_key]
             meta_val = valid_meta.get(meta_key, str(meta_key))
 
-            if (
-                type(meta_val) is str
-                and type(data) is list
-                and len(data) == pyg_data_size
-            ):
+            if not isinstance(data, (list, Tensor)):
+                m = f"Skipping {meta_key} due to invalid type ({type(data)})"
+                logger.debug(m)
+                continue
+
+            if len(data) != pyg_data_size:
+                m = f"Skipping {meta_key} due to invalid length ({len(data)} != {pyg_data_size})"  # noqa: E501
+                logger.debug(m)
+                continue
+
+            if isinstance(data, list):
                 meta_val = "_key" if meta_val in ["_v_key", "_e_key"] else meta_val
                 df = df.join(DataFrame(data[start_index:end_index], columns=[meta_val]))
 
-            if type(data) is Tensor and len(data) == pyg_data_size:
+            elif isinstance(data, Tensor):
                 df = df.join(
                     self.__build_dataframe_from_tensor(
                         data[start_index:end_index],
@@ -1402,6 +1711,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         return df
 
+    @with_tracing("build_dataframe_from_tensor")
     def __build_dataframe_from_tensor(
         self,
         pyg_tensor: Tensor,
@@ -1429,9 +1739,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
         :rtype: pandas.DataFrame
         :raise adbpyg_adapter.exceptions.PyGMetagraphError: If invalid **meta_val**.
         """
-        logger.debug(
-            f"__build_dataframe_from_tensor(df, '{meta_key}', {type(meta_val)})"
-        )
+        TracingManager.set_attributes(meta_key=meta_key, meta_val=str(meta_val))
+        logger.debug(f"__build_dataframe_from_tensor(df, {meta_key}, {type(meta_val)})")
 
         if type(meta_val) is str:
             df = DataFrame(index=range(start_index, end_index), columns=[meta_val])
@@ -1479,6 +1788,7 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
 
         raise PyGMetagraphError(f"Invalid {meta_val} type")  # pragma: no cover
 
+    @with_tracing("insert_adb_documents")
     def __insert_adb_docs(
         self,
         spinner_progress: Progress,
@@ -1502,6 +1812,8 @@ class ADBPyG_Adapter(Abstract_ADBPyG_Adapter):
             https://docs.python-arango.com/en/main/specs.html#arango.collection.Collection.import_bulk
         :param adb_import_kwargs: Any
         """
+        TracingManager.set_attributes(col=col, size=len(df))
+
         action = f"ADB Import: '{col}' ({len(df)})"
         spinner_progress_task = spinner_progress.add_task("", action=action)
 

@@ -37,6 +37,7 @@ from .conftest import (
     get_fake_homo_graph,
     get_karate_graph,
     get_social_graph,
+    tracer,
     udf_key_df_to_tensor,
     udf_users_x_tensor_to_df,
     udf_v2_x_tensor_to_df,
@@ -389,7 +390,7 @@ def test_pyg_to_adb_ambiguity_error() -> None:
         adbpyg_adapter.pyg_to_arangodb("graph", d)
 
 
-def test_pyg_to_arangodb_with_controller() -> None:
+def test_pyg_to_adb_with_controller() -> None:
     name = "Karate_3"
     data = get_karate_graph()
     db.delete_graph(name, drop_collections=True, ignore_missing=True)
@@ -682,7 +683,7 @@ def test_adb_graph_to_pyg_to_arangodb_with_missing_document_and_strict(
     data = get_karate_graph()
     db.delete_graph(name, drop_collections=True, ignore_missing=True)
 
-    ADBPyG_Adapter(db).pyg_to_arangodb(name, data)
+    ADBPyG_Adapter(db, tracer=tracer).pyg_to_arangodb(name, data)
 
     graph = db.graph(name)
     v_cols: Set[str] = graph.vertex_collections()
@@ -712,7 +713,7 @@ def test_adb_graph_to_pyg_to_arangodb_with_missing_document_and_permissive(
     data = get_karate_graph()
     db.delete_graph(name, drop_collections=True, ignore_missing=True)
 
-    ADBPyG_Adapter(db).pyg_to_arangodb(name, data)
+    ADBPyG_Adapter(db, tracer=tracer).pyg_to_arangodb(name, data)
 
     graph = db.graph(name)
     v_cols: Set[str] = graph.vertex_collections()
