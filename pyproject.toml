@@ -21,11 +21,9 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
-    # "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Utilities",
     "Typing :: Typed",
 ]
@@ -35,7 +33,8 @@ dependencies = [
     "rich>=12.5.1",
     "pandas>=1.3.5",
     "python-arango~=7.6",
-    "torch>=1.12.0",
+    "numpy>=2.2.6",
+    "torch>=1.12.0,<3.0",
     "torch-sparse>=0.6.14",
     "torch-scatter>=2.0.9",
     "torch-geometric>=2.0.4",
@@ -79,7 +78,7 @@ profile = "black"
 
 [tool.flake8]
 max-line-length = 88
-extend-ignore = ["E203", "W503", "E251"]
+extend-ignore = ["E203", "W503", "E251", "E231", "E272", "E201", "E202", "E271", "E221"]
 exclude = [".git", ".idea", ".*_cache", "dist", "venv"]
 
 [tool.mypy]
