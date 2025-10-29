@@ -1,3 +1,22 @@
+## 1.1.4 (2025-10-29)
+
+### Other
+
+* CI & PyProject Maintenance (#33) [Anthony Mahanna]
+
+  * update: python matrix, torch version in CI
+
+  * update: pyproject dep
+
+  * rem: py 3.8, 3.9
+
+  * extend-ignore
+
+* Changelog: release 1.1.3 (#32) [github-actions[bot]]
+
+  !gitchangelog
+
+
 ## 1.1.3 (2024-02-09)
 
 ### Fix
